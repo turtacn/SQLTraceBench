@@ -87,9 +87,13 @@ go install [github.com/turtacn/SQLTraceBench/cmd/sql_trace_bench@latest](https:/
 
     该命令将：
     a. 解析 StarRocks 的 schema 和 trace 文件。
+    
     b. 将 schema 转换为 ClickHouse 兼容的格式。
+    
     c. 将 SQL 查询转换为 ClickHouse 方言。
+    
     d. 基于指定的参数生成工作负载。
+    
     e. 对您的 ClickHouse 实例执行基准测试并输出报告。
 
 *(这是一个概念性示例。确切的标志和配置选项在我们的文档中有详细说明。)*

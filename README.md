@@ -87,9 +87,13 @@ Here's a quick example of how to run a benchmark. Imagine you have a SQL trace f
 
     This command will:
     a. Parse the StarRocks schema and trace file.
+    
     b. Convert the schema to be ClickHouse-compatible.
+    
     c. Translate the SQL queries into ClickHouse dialect.
+    
     d. Generate a workload based on the specified parameters.
+    
     e. Execute the benchmark against your ClickHouse instance and output a report.
 
 *(This is a conceptual example. The exact flags and config options are detailed in our documentation.)*
