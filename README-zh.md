@@ -2,116 +2,129 @@
   <img src="logo.png" alt="SQLTraceBench Logo" width="200" height="200">
   <h1>SQLTraceBench</h1>
   <p>
-    <strong>一个通用的、用于跨数据库性能分析的 Trace 驱动基准测试框架。</strong>
+    <strong>一个面向跨数据库性能分析的通用、基于追踪驱动的基准测试框架</strong>
   </p>
   <p>
     <!--<a href="https://github.com/turtacn/SQLTraceBench/actions/workflows/go.yml"><img src="https://github.com/turtacn/SQLTraceBench/actions/workflows/go.yml/badge.svg" alt="构建状态"></a>-->
     <a href="https://github.com/turtacn/SQLTraceBench/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="许可证"></a>
-    <a href="https://goreportcard.com/report/github.com/turtacn/SQLTraceBench"><img src="https://goreportcard.com/badge/github.com/turtacn/SQLTraceBench" alt="Go 代码报告"></a>
-    <a href="https://github.com/turtacn/SQLTraceBench/releases"><img src="https://img.shields.io/github/v/release/turtacn/SQLTraceBench" alt="最新发布"></a>
+    <a href="https://goreportcard.com/report/github.com/turtacn/SQLTraceBench"><img src="https://goreportcard.com/badge/github.com/turtacn/SQLTraceBench" alt="Go Report"></a>
+    <a href="https://github.com/turtacn/SQLTraceBench/releases"><img src="https://img.shields.io/github/v/release/turtacn/SQLTraceBench" alt="最新版本"></a>
   </p>
   <p>
-    <a href="README.md"><strong>English</strong></a> | <a href="docs/architecture.md"><strong>Architecture Doc</strong></a>
+    <a href="README.md"><strong>English</strong></a> | <a href="docs/architecture.md"><strong>Architecure Design</strong></a>
   </p>
 </div>
 
-欢迎来到 SQLTraceBench！我们的使命是彻底改变开发者和数据库管理员进行基准测试与系统对比的方式。我们的框架使您能够在不同的数据库技术之间重放真实的生产工作负载，确保您的数据库选型是基于数据，而不仅仅是宣传。
+想彻底革新开发者和 DBA 对数据库进行基准测试和比较的方式。  
+该框架能够帮助你在不同数据库技术之间 **回放真实的生产工作负载**，确保你的数据库选择 **基于数据，而不仅仅是厂商的宣传**。
 
 ## 核心使命
 
-SQLTraceBench 是一个 Trace 驱动的基准测试系统，其设计目标是获取已有的 SQL trace 和数据库 schema，为多种目标数据库生成等价的工作负载，并执行全面的性能对比分析。它为负载、并发和数据生成提供了灵活的控制，是数据库评估、迁移和性能调优不可或缺的工具。
+SQLTraceBench 是一个 **基于 SQL 追踪驱动** 的基准测试系统，能够读取已有的 **SQL Trace 与数据库模式**，为不同目标数据库生成等效的工作负载，并执行全面的性能对比。  
+它提供了灵活的负载控制、并发度调节和数据生成能力，是数据库评估、迁移和性能调优的必备工具。
 
 ## 为什么选择 SQLTraceBench？
 
-数据库基准测试是出了名的困难。像 TPC-H/DS 这样的合成基准虽然很有价值，但通常无法反映您特定应用的独特查询模式和数据倾斜。SQLTraceBench 通过以下方式弥合了这一差距：
+数据库基准测试一向困难重重。像 TPC-H/DS 这样的合成基准虽有价值，但往往无法反映你应用独特的查询模式与数据倾斜。  
+SQLTraceBench 填补了这一空白：
 
-* **真实世界工作负载**：使用您实际的生产 SQL trace，高度精确地复现您的应用行为。
-* **跨数据库转换**：智能地转换 SQL 方言和数据库 schema（例如，从 StarRocks 到 ClickHouse，或从 PostgreSQL 到 TiDB），实现真正的“同场景”公平比较。
-* **可控的负载重放**：它超越了简单的重放。系统会对查询进行模板化，对数据分布进行建模，并允许您调整 QPS、并发度和热点比例，以模拟各种场景，如流量高峰或未来的业务增长。
-* **可扩展的设计**：强大的插件系统使社区能够轻松地为新数据库添加支持。
+* **真实工作负载**：直接使用生产环境的 SQL 追踪，能够高度还原应用的实际行为。  
+* **跨数据库转换**：智能翻译 SQL 方言与数据库模式（例如从 StarRocks → ClickHouse，或 PostgreSQL → TiDB），实现真正的“同类对比”。  
+* **可控回放**：不仅仅是重放。它会对查询做模板化、建模参数分布，并允许你调节 QPS、并发度和热点比例，从而模拟高峰流量或未来增长场景。  
+* **可扩展设计**：插件机制强大，社区可以方便地扩展以支持新的数据库。  
 
-## 主要功能特性
+## 关键特性
 
-* **Schema 与 SQL 转换**：自动在不同数据库系统之间转换 DB schema 和 SQL 查询。
-* **SQL 模板化与参数化**：利用 AST（抽象语法树）解析创建查询模板，并从原始 trace 中建模查询参数的分布。
-* **合成数据生成**：分析源数据库中的数据分布，为目标系统生成真实且可伸缩的数据集。
-* **灵活的负载生成**：对并发、QPS、查询组合和热点数据访问模式进行细粒度控制。
-* **性能验证**：将被测系统性能指标（QPS、延迟、扫描行数）与原始 trace 进行对比，确保基准的保真度，并提供详细的偏差报告。
-* **命令行工具**：一个功能强大且易于使用的 CLI 工具 `sql_trace_bench`，用于编排整个工作流程。
+* **模式与 SQL 转换**：自动转换数据库模式与 SQL 查询，兼容不同数据库系统。  
+* **SQL 模板化与参数化**：基于 AST 解析生成查询模板，并根据原始追踪建模查询参数分布。  
+* **分布感知的数据合成**：分析源数据库的数据分布（基数、倾斜、频率），在目标数据库生成逼真且可扩展的合成数据集；规模可由你掌控。  
+* **灵活的工作负载生成**：精细控制并发、QPS、查询混合比例和热点数据访问模式。  
+* **性能验证**：对比基准测试的性能画像（QPS、延迟、扫描行数）与原始追踪，确保测试的真实性，并生成详细的偏差报告。  
+* **命令行工具**：强大且易用的 CLI 工具 `sql_trace_bench`，可编排整个流程。  
 
-## 快速上手
+## 快速开始
 
 ### 安装
 
-请确保您已安装 Go (版本 1.21+)。
+请确保你已安装 Go（版本 1.21+）。  
 
 ```bash
-go install [github.com/turtacn/SQLTraceBench/cmd/sql_trace_bench@latest](https://github.com/turtacn/SQLTraceBench/cmd/sql_trace_bench@latest)
+go install github.com/turtacn/SQLTraceBench/cmd/sql_trace_bench@latest
 ````
 
 ### 基本用法
 
-这里是一个如何运行基准测试的快速示例。假设您有一个来自 StarRocks 的 SQL trace，并希望在 ClickHouse 上测试一个等价的工作负载。
+以下是一个运行基准测试的简单示例。假设你有一份来自 **StarRocks** 的 SQL 追踪，并希望在 **ClickHouse** 上测试等效的工作负载。
 
-1.  **准备您的配置文件 (`config.yaml`):**
+1. **准备配置文件 (`config.yaml`)：**
 
-    ```yaml
-    # config.yaml
-    source:
-      db_type: "starrocks"
-      schema_file: "./schemas/starrocks_schema.yml"
-      trace_file: "./traces/starrocks_trace.jsonl"
-      data_source: # 用于分析数据分布的源数据库连接信息
-        host: "starrocks-host"
-        port: 9030
-        user: "root"
+   ```yaml
+   # config.yaml
+   source:
+     db_type: "starrocks"
+     schema_file: "./schemas/starrocks_schema.yml"
+     trace_file: "./traces/starrocks_trace.jsonl"
+     # 数据合成需要连接源数据库
+     data_source: 
+       host: "starrocks-host"
+       port: 9030
+       user: "root"
 
-    target:
-      db_type: "clickhouse"
-      # 用于运行基准测试的目标数据库连接信息
-      host: "clickhouse-host"
-      port: 9000
-      user: "default"
+   target:
+     db_type: "clickhouse"
+     host: "clickhouse-host"
+     port: 9000
+     user: "default"
+     schema_setup_action: "drop-create" 
 
-    workload:
-      concurrency: 64 # 并发工作线程数
-      duration: "5m"  # 基准测试运行时间
-      qps_scale: 1.5  # 以 1.5 倍原始平均 QPS 进行重放
-    ```
+   # （可选）在运行工作负载前先在目标数据库生成合成数据
+   data_synthesis:
+     enabled: true
+     # 为每张表定义扩展规则
+     tables:
+       - name: "users"
+         # 生成源表行数的 10 倍
+         scale_factor: 10.0
+       - name: "network_security_log"
+         # 或者直接指定生成固定行数
+         target_rows: 100000000
 
-2.  **运行基准测试:**
+   workload:
+     concurrency: 64
+     duration: "5d"
+     qps_scale: 1.5  # 以源 QPS 的 1.5 倍回放
+   ```
 
-    ```bash
-    sql_trace_bench run --config ./config.yaml
-    ```
+2. **运行基准测试：**
 
-    该命令将：
-    
-    a. 解析 StarRocks 的 schema 和 trace 文件。
-    
-    b. 将 schema 转换为 ClickHouse 兼容的格式。
-    
-    c. 将 SQL 查询转换为 ClickHouse 方言。
-    
-    d. 基于指定的参数生成工作负载。
-    
-    e. 对您的 ClickHouse 实例执行基准测试并输出报告。
+   ```bash
+   sql_trace_bench run --config ./config.yaml
+   ```
 
-*(这是一个概念性示例。确切的标志和配置选项在我们的文档中有详细说明。)*
+   此命令将依次完成：
 
-## 贡献
+   a. 解析 StarRocks 的模式文件与追踪文件。
+   b. 转换模式以适配 ClickHouse。
+   c. 翻译 SQL 查询为 ClickHouse 方言。
+   d. 基于配置参数生成工作负载。
+   e. 在 ClickHouse 实例执行基准测试并输出报告。
 
-我们正在建立一个由热衷于数据库性能和可靠性的开发者组成的社区。我们非常欢迎各种贡献！无论是添加新的数据库插件、改进 SQL 转换逻辑，还是完善文档，您的帮助都将受到赞赏。
+*(这是一个概念性示例，具体参数与配置详见文档。)*
 
-请阅读我们的 [贡献指南](https://www.google.com/search?q=./CONTRIBUTING.md) 以开始。
+## 贡献指南
+
+我们正在构建一个对数据库性能与可靠性充满热情的开发者社区。
+非常欢迎你的贡献！无论是增加新的数据库插件、改进 SQL 翻译逻辑，还是完善文档，都十分重要。
+
+请阅读 [贡献指南](./CONTRIBUTING.md) 开始参与。
 
 ## 社区
 
-加入我们的社区渠道，提出问题，分享您的想法，并与其他用户建立联系。
+欢迎加入社区频道，提问、分享想法并与其他用户交流：
 
-  * **GitHub Discussions**: 用于提问和讨论。
-  * **Slack/Discord**: (链接待添加)
+* **GitHub Discussions**：用于提问与讨论。
+* **Slack/Discord**：即将开放。
 
 ## 许可证
 
-SQLTraceBench 采用 [Apache 2.0 许可证](https://www.google.com/search?q=./LICENSE) 授权。
+SQLTraceBench 使用 [Apache 2.0 许可证](./LICENSE)。
