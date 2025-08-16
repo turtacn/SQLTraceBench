@@ -1,36 +1,36 @@
-# SQLTraceBench Architecture
+# SQLTraceBench 架构设计
 
-## 1. Overview
+## 1. 概述
 
-SQLTraceBench is architected as a modular, extensible, and high-performance system for conducting trace-driven database benchmarks. Its design follows a layered and plugin-based approach, ensuring that core logic is decoupled from database-specific implementations. The system is orchestrated by a central CLI, which guides the user through a sequential pipeline from input analysis to final reporting.
+SQLTraceBench 是一个模块化、可扩展且高性能的系统，旨在开展跟踪驱动的数据库基准测试。其设计采用分层和基于插件的方法，确保核心逻辑与数据库特定实现解耦。系统由中央命令行界面（CLI）协调，引导用户完成从输入分析到最终报告的完整流程。
 
-The core principles guiding this architecture are:
-* **Modularity and Decoupling**: Each stage of the pipeline (parsing, translation, execution) is an independent component. Database-specific logic is encapsulated within plugins, allowing for easy extension without modifying the core framework.
-* **Extensibility**: The plugin interface is the cornerstone of the system, enabling first-party and third-party developers to add support for new databases with minimal effort.
-* **Testability**: Clear interfaces between components facilitate unit and integration testing, ensuring the reliability of the transformation logic and workload execution.
-* **Observability**: A centralized logging and metrics-gathering mechanism provides deep insights into the benchmark process, aiding in debugging and performance analysis.
+该架构遵循的核心原则如下：
+* **模块化与解耦**：流程中的每个阶段（解析、转换、执行）都是独立组件。数据库特定逻辑封装在插件中，无需修改核心框架即可轻松扩展。
+* **可扩展性**：插件接口是系统的基石，使第一方和第三方开发者能够以最小的工作量添加对新数据库的支持。
+* **可测试性**：组件间清晰的接口便于单元测试和集成测试，确保转换逻辑和工作负载执行的可靠性。
+* **可观测性**：集中式日志记录和指标收集机制提供对基准测试过程的深度洞察，助力调试和性能分析。
 
-### 1.1 DFX (Design for X) Analysis
+### 1.1 DFX（为特定目标设计）分析
 
-| DFX Aspect | Problem Statement & Challenge | Solution in SQLTraceBench | Expected Outcome & Vision |
+| DFX 方面 | 问题陈述与挑战 | SQLTraceBench 中的解决方案 | 预期成果与愿景 |
 | :--- | :--- | :--- | :--- |
-| **可扩展性 (Extensibility)** | The number of database systems is vast and growing. Hardcoding logic for each DB is unsustainable. | A plugin-based architecture. A `DatabasePlugin` interface defines a contract for all DB-specific operations (SQL dialect, schema mapping, driver). | Any developer can add support for a new database (e.g., Oracle, Snowflake) by implementing a single interface. The ecosystem can grow organically. |
-| **可维护性 (Maintainability)** | Complex logic for SQL AST manipulation, parameter modeling, and workload generation can become a monolithic "big ball of mud". | A layered architecture separates concerns: a `pkg` layer for reusable components (AST, config, trace format), an `internal` layer for orchestration, and a `plugins` directory for extensions. | Clear boundaries between modules reduce cognitive load, simplify debugging, and allow parallel development on different system parts. |
-| **可用性 (Usability)** | The process is complex (schema analysis, trace parsing, workload config). Users need a simple, guided experience. | A single, powerful CLI (`sql_trace_bench`) with clear commands (`run`, `validate`, `analyze`) and a comprehensive YAML configuration file. | Users can execute a complex cross-DB benchmark with a single command. The configuration file serves as a declarative, reproducible recipe for the experiment. |
-| **可靠性 (Reliability)** | Network failures, incorrect DB credentials, or unsupported SQL features can cause failures. Benchmarks must be resilient. | Centralized error handling, connection retries, and validation steps at each stage. Plugins report their capabilities (e.g., supported functions). | The system provides clear, actionable error messages. Benchmarks can gracefully handle transient errors and produce partial results where possible. |
-| **性能 (Performance)** | The workload generator must be capable of producing high QPS and managing thousands of concurrent connections without being the bottleneck itself. | The core workload generator is written in Go, leveraging goroutines for lightweight, highly concurrent execution. | The tool can saturate modern analytical databases and accurately simulate high-traffic production environments, ensuring the benchmark measures the DB, not the tool. |
+| **可扩展性（Extensibility）** | 数据库系统数量庞大且持续增长。为每个数据库硬编码逻辑难以维持。 | 基于插件的架构。`DatabasePlugin` 接口为所有数据库特定操作（SQL 方言、 schema 映射、驱动程序）定义了统一规范。 | 开发者只需实现一个接口，即可为新数据库（如 Oracle、Snowflake）添加支持。生态系统可自然发展壮大。 |
+| **可维护性（Maintainability）** | SQL AST 操作、参数建模和工作负载生成的复杂逻辑可能演变为一个庞大的“泥球”式单体结构。 | 分层架构实现关注点分离：`pkg` 层用于可复用组件（AST、配置、跟踪格式），`internal` 层用于流程协调，`plugins` 目录用于扩展。 | 模块间清晰的边界降低认知负担，简化调试，并支持不同系统部分的并行开发。 |
+| **可用性（Usability）** | 流程复杂（schema 分析、跟踪解析、工作负载配置）。用户需要简单、引导式的体验。 | 单一且功能强大的 CLI（`sql_trace_bench`），配有清晰的命令（`run`、`validate`、`analyze`）和全面的 YAML 配置文件。 | 用户可通过单一命令执行复杂的跨数据库基准测试。配置文件作为实验的声明式、可复现“配方”。 |
+| **可靠性（Reliability）** | 网络故障、错误的数据库凭据或不支持的 SQL 功能可能导致失败。基准测试必须具备韧性。 | 集中式错误处理、连接重试和各阶段的验证步骤。插件报告其功能（如支持的函数）。 | 系统提供清晰、可操作的错误消息。基准测试能优雅处理瞬时错误，并在可能的情况下生成部分结果。 |
+| **性能（Performance）** | 工作负载生成器必须能够产生高 QPS 并管理数千个并发连接，且自身不会成为瓶颈。 | 核心工作负载生成器采用 Go 语言编写，利用 goroutine 实现轻量级、高并发执行。 | 该工具可充分负载现代分析型数据库，准确模拟高流量生产环境，确保基准测试衡量的是数据库性能而非工具本身。 |
 
-## 2. System Workflow
+## 2. 系统工作流
 
-The SQLTraceBench pipeline processes data through several distinct stages, orchestrated by the central command. Each stage produces an artifact that serves as the input for the next.
+SQLTraceBench 流程通过多个不同阶段处理数据，这些阶段由中央命令协调。每个阶段生成的产物将作为下一阶段的输入。
 
 ```mermaid
 graph TD
     %% Main workflow for SQLTraceBench
     subgraph INPUT [输入层（Input Layer）]
-        A1[SQL Trace<br/>(e.g., starrocks_trace.jsonl)]
-        A2[DB Schema<br/>(e.g., starrocks_schema.yml)]
-        A3[配置<br/>(config.yaml)]
+        A1[SQL Trace<br/>（e.g., starrocks_trace.jsonl）]
+        A2[DB Schema<br/>（e.g., starrocks_schema.yml）]
+        A3[配置<br/>（config.yaml）]
     end
 
     subgraph CORE [核心处理流水线（Core Processing Pipeline）]
@@ -46,7 +46,7 @@ graph TD
     end
     
     subgraph OUTPUT [输出层（Output Layer）]
-        D1[Benchmark 报告<br/>(report.md/.json)]
+        D1[Benchmark 报告<br/>（report.md/.json）]
     end
     
     A1 & A2 & A3 --> B1
@@ -81,12 +81,12 @@ graph TD
 8.  **性能指标收集 (Metrics Collection)**: 在执行期间，实时收集关键性能指标（KPIs），如查询延迟（平均、P95、P99）、QPS、扫描/返回行数等。
 9.  **偏差分析与报告 (Deviation Analysis & Reporting)**: 测试结束后，将收集到的性能指标与从源 Trace 中分析出的基线指标进行对比，计算偏差，并生成一份详细的、人类可读的最终报告。
 
-## 3. Core Components
+## 3. 核心组件
 
 ```mermaid
-graph TD
+graph LR
     %% Component Diagram
-    CLI[CLI<br/>(Cobra)]
+    CLI[CLI<br/>（Cobra）]
 
     subgraph Orchestration [编排层（Orchestration Layer）]
         Orchestrator[Orchestrator]
@@ -95,7 +95,7 @@ graph TD
     subgraph CoreServices [核心服务层（Core Services Layer）]
         TraceParser[Trace Parser]
         SchemaParser[Schema Parser]
-        Templater[SQL Templater (AST)]
+        Templater[SQL Templater （AST）]
         Modeler[Parameter Modeler]
         WorkloadGen[Workload Generator]
         Executor[Load Executor]
@@ -158,7 +158,7 @@ graph TD
       * **`pkg/types`**: 定义项目中的核心数据结构，如 `Query`, `Schema`, `Template`, `TraceEvent` 等。
       * **`pkg/errors`**: 集中定义项目中的自定义错误类型，便于统一处理。
 
-## 4. Project Directory Structure
+## 4. 代码结构设计
 
 The project will follow the standard Go project layout to ensure clarity and scalability.
 
