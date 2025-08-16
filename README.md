@@ -5,14 +5,13 @@
     <strong>A Universal Trace-driven Benchmark Framework for Cross-Database Performance Analysis.</strong>
   </p>
   <p>
-  
     <!--<a href="https://github.com/turtacn/SQLTraceBench/actions/workflows/go.yml"><img src="https://github.com/turtacn/SQLTraceBench/actions/workflows/go.yml/badge.svg" alt="Build Status"></a>-->
     <a href="https://github.com/turtacn/SQLTraceBench/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
     <a href="https://goreportcard.com/report/github.com/turtacn/SQLTraceBench"><img src="https://goreportcard.com/badge/github.com/turtacn/SQLTraceBench" alt="Go Report Card"></a>
     <a href="https://github.com/turtacn/SQLTraceBench/releases"><img src="https://img.shields.io/github/v/release/turtacn/SQLTraceBench" alt="Latest Release"></a>
   </p>
   <p>
-    <a href="README-zh.md"><strong>简体中文</strong></a>
+    <a href="README-zh.md"><strong>简体中文</strong></a> | <a href="docs/architecture.md"><strong>架构设计</strong></a>
   </p>
 </div>
 

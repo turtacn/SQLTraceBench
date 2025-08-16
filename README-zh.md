@@ -11,7 +11,7 @@
     <a href="https://github.com/turtacn/SQLTraceBench/releases"><img src="https://img.shields.io/github/v/release/turtacn/SQLTraceBench" alt="最新发布"></a>
   </p>
   <p>
-    <a href="README.md"><strong>English</strong></a>
+    <a href="README.md"><strong>English</strong></a> | <a href="docs/architecture.md"><strong>Architecture Doc</strong></a>
   </p>
 </div>
 
