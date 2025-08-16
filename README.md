@@ -34,7 +34,7 @@ Database benchmarking is notoriously difficult. Synthetic benchmarks like TPC-H/
 
 * **Schema & SQL Translation**: Automatically converts DB schemas and SQL queries between different database systems.
 * **SQL Templating & Parameterization**: Utilizes AST parsing to create query templates and models the distribution of query parameters from the original trace.
-* **Synthetic Data Generation**: Analyzes data distributions from a source database and generates realistic, scalable datasets for target systems.
+* **Distribution-Aware Data Synthesis**: Analyzes data distributions (e.g., cardinality, skew, frequency) from a source database and generates realistic, scalable synthetic datasets for your target systems. You control the scale.
 * **Flexible Workload Generation**: Fine-grained control over concurrency, QPS, query mix, and hotspot data access patterns.
 * **Performance Validation**: Compares the performance profile (QPS, latency, rows scanned) of the benchmark against the original trace to ensure fidelity and provides detailed deviation reports.
 * **Command-Line Interface**: A powerful and easy-to-use CLI tool, `sql_trace_bench`, to orchestrate the entire workflow.
@@ -61,21 +61,34 @@ Here's a quick example of how to run a benchmark. Imagine you have a SQL trace f
       db_type: "starrocks"
       schema_file: "./schemas/starrocks_schema.yml"
       trace_file: "./traces/starrocks_trace.jsonl"
-      data_source: # Connection details to analyze data distribution
+      # Connection is required for data synthesis
+      data_source: 
         host: "starrocks-host"
         port: 9030
         user: "root"
 
     target:
       db_type: "clickhouse"
-      # Connection details for the target DB to run the benchmark
       host: "clickhouse-host"
       port: 9000
       user: "default"
+      schema_setup_action: "drop-create" 
+
+    # (Optional) Generate synthetic data in the target DB before running the workload
+    data_synthesis:
+      enabled: true
+      # Define scaling rules for each table
+      tables:
+        - name: "users"
+          # Generate 10x the number of rows found in the source table
+          scale_factor: 10.0
+        - name: "network_security_log"
+          # Or generate a specific number of rows
+          target_rows: 100000000
 
     workload:
-      concurrency: 64 # Number of parallel workers
-      duration: "5m"  # How long to run the benchmark
+      concurrency: 64
+      duration: "5d"
       qps_scale: 1.5  # Replay at 1.5x the original average QPS
     ```
 

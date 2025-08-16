@@ -1,5 +1,12 @@
 # SQLTraceBench 架构设计
 
+数据库基准测试是出了名的困难。像 TPC-H/DS 这样的合成基准虽然很有价值，但通常无法反映您特定应用的独特查询模式和数据倾斜。SQLTraceBench 通过以下方式弥合了这一差距：
+
+* **真实世界工作负载**：使用您实际的生产 SQL trace，高度精确地复现您的应用行为。
+* **跨数据库转换**：智能地转换 SQL 方言和数据库 schema（例如，从 StarRocks 到 ClickHouse，或从 PostgreSQL 到 TiDB），实现真正的“同场景”公平比较。
+* **可控的负载重放**：它超越了简单的重放。系统会对查询进行模板化，对数据分布进行建模，并允许您调整 QPS、并发度和热点比例，以模拟各种场景，如流量高峰或未来的业务增长。
+* **可扩展的设计**：强大的插件系统使社区能够轻松地为新数据库添加支持。
+
 ## 1. 概述
 
 SQLTraceBench 是一个模块化、可扩展且高性能的系统，旨在开展跟踪驱动的数据库基准测试。其设计采用分层和基于插件的方法，确保核心逻辑与数据库特定实现解耦。系统由中央命令行界面（CLI）协调，引导用户完成从输入分析到最终报告的完整流程。
@@ -10,7 +17,7 @@ SQLTraceBench 是一个模块化、可扩展且高性能的系统，旨在开展
 * **可测试性**：组件间清晰的接口便于单元测试和集成测试，确保转换逻辑和工作负载执行的可靠性。
 * **可观测性**：集中式日志记录和指标收集机制提供对基准测试过程的深度洞察，助力调试和性能分析。
 
-### 1.1 DFX（为特定目标设计）分析
+### 1.1 DFX分析
 
 | DFX 方面 | 问题陈述与挑战 | SQLTraceBench 中的解决方案 | 预期成果与愿景 |
 | :--- | :--- | :--- | :--- |
@@ -158,6 +165,75 @@ graph LR
       * **`pkg/types`**: 定义项目中的核心数据结构，如 `Query`, `Schema`, `Template`, `TraceEvent` 等。
       * **`pkg/errors`**: 集中定义项目中的自定义错误类型，便于统一处理。
 
+
+### 3.1. 数据合成工作流 (Data Synthesis Workflow)
+
+SQLTraceBench 的一个关键差异化特性是，它不仅能重放工作负载，还能在一个不同规模的数据集上进行重放，同时保持原始数据的特征。这对于容量规划以及理解系统在未来增长下的表现至关重要。**数据合成模块 (Data Synthesis module)** 负责这个过程，它会在主工作负载执行之前按需触发。
+
+**原理 (Principle)**：核心原理是 **分布感知合成 (Distribution-Aware Synthesis)**。系统并不是生成纯随机或均匀的数据，而是连接到源数据库，分析关键列的数据统计分布，然后基于这些统计模型在目标数据库中生成一个更大（或更小）的数据集。这确保了生成的数据能保持现实属性，比如基数（cardinality）、数据倾斜（data skew）、数值频率（value frequencies），从而得到更精确的基准测试结果。
+
+**流程 (Process)**：工作流编排如下：
+
+```mermaid
+graph TD
+    %% Data Synthesis Workflow
+    A[Orchestrator<br/>读取 `data_synthesis` 配置] --> B{Enabled?};
+    B -- No --> F[跳过数据合成<br/>Proceed to Workload Execution];
+    B -- Yes --> C[连接源数据库<br/>Connect to Source DB];
+    
+    subgraph Analysis [数据分析循环（Analysis Loop）]
+        C --> C1[For each table in config];
+        C1 --> C2[For each column in table];
+        C2 --> C3[执行分析查询<br/>（e.g., Histograms, Freq Counts）];
+        C3 --> C4[构建列分布模型<br/>Build Column Distribution Model];
+        C4 --> C2;
+        C2 -- Done --> C1;
+    end
+
+    subgraph Generation [数据生成循环（Generation Loop）]
+        D[连接目标数据库<br/>Connect to Target DB] --> D1[For each table in config];
+        D1 --> D2[获取目标行数<br/>（from scale_factor/target_rows）];
+        D2 --> D3[批量生成数据行<br/>（using Column Models）];
+        D3 --> D4[使用插件的 Bulk Loader<br/>高效写入目标数据库];
+        D4 --> D1;
+        D1 -- Done --> E[数据合成完成];
+    end
+    
+    C1 -- Done --> D;
+    E --> F;
+    
+    classDef trigger fill:#e1d5e7,stroke:#9673a6,stroke-width:2px;
+    classDef process fill:#d5e8d4,stroke:#82b366,stroke-width:2px;
+    classDef io fill:#cde4ff,stroke:#5b97d1,stroke-width:2px;
+    classDef final fill:#ffe6cc,stroke:#d79b00,stroke-width:2px;
+    
+    class A,B,F trigger;
+    class C,C1,C2,C3,C4,D,D1,D2,D3,D4,E process;
+    
+```
+
+**流程阐述:**
+
+1. **配置检查 (Configuration Check)**：`Orchestrator` 会检查 `config.yaml` 中是否存在 `data_synthesis` 配置段，并确认 `enabled: true`。如果禁用或缺失，则跳过整个工作流。
+2. **源数据库分析 (Source DB Analysis)**：
+
+   * 系统根据 `source.data_source` 提供的凭据连接源数据库。
+   * 遍历 `data_synthesis.tables` 列表中指定的表。
+   * 对于表中的每一列，执行统计分析：
+
+     * **数值/日期类型**：计算直方图以了解分布情况（例如，时间戳是否集中在工作时间段），并找到最小/最大值。
+     * **低基数类别类型**：计算不同值的频率映射（例如，`threatClass` 中 '201' 占 30%，'30' 占 70%）。
+     * **高基数/唯一值类型**：对于 UUID 或主键等列，识别格式，并生成遵循相同格式的新唯一值。
+   * 该阶段的结果是每个表的内存级“数据剖面 (Data Profile)”，包含了每列的生成模型。
+3. **目标数据库生成 (Target DB Generation)**：
+
+   * 系统连接到目标数据库。
+   * 再次遍历表。对于每张表，根据用户配置的 `scale_factor` 或 `target_rows` 计算目标行数。
+   * 按批次生成数据（例如每次 10,000–100,000 行），以最大化插入性能。每行通过调用该列的生成模型来构造。
+   * 关键是使用目标数据库 `DatabasePlugin` 提供的 **批量导入 (Bulk Loading)** 机制，高效写入，避免逐行插入的低效。
+4. **完成 (Completion)**：当所有表都填充到目标规模后，数据合成过程完成，`Orchestrator` 会进入工作负载执行阶段。
+
+
 ## 4. 代码结构设计
 
 The project will follow the standard Go project layout to ensure clarity and scalability.
@@ -274,6 +350,18 @@ target:
   
   # Action to take on schema before benchmark: 'none', 'drop-create'
   schema_setup_action: "drop-create" 
+
+# (Optional) Generate synthetic data in the target DB before running the workload
+data_synthesis:
+  enabled: true
+  # Define scaling rules for each table
+  tables:
+    - name: "users"
+      # Generate 10x the number of rows found in the source table
+      scale_factor: 10.0
+    - name: "network_security_log"
+      # Or generate a specific number of rows
+      target_rows: 100000000
 
 workload:
   concurrency: 64
