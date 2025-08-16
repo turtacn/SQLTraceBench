@@ -86,6 +86,7 @@ Here's a quick example of how to run a benchmark. Imagine you have a SQL trace f
     ```
 
     This command will:
+    
     a. Parse the StarRocks schema and trace file.
     
     b. Convert the schema to be ClickHouse-compatible.
