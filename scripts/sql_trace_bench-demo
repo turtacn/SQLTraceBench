@@ -16,78 +16,30 @@ LANGUAGE=${LANGUAGE:-en}  # default English, 默认英文
 
 msg() {
     case $1 in
-        cfg_loaded)
-            [ "$LANGUAGE" = "zh" ] && echo "配置已从 ./config.yaml 加载" || echo "Configuration loaded from ./config.yaml"
-            ;;
-        src_db)
-            [ "$LANGUAGE" = "zh" ] && echo "源数据库: StarRocks, 目标数据库: ClickHouse" || echo "Source DB: StarRocks, Target DB: ClickHouse"
-            ;;
-        parse_schema)
-            [ "$LANGUAGE" = "zh" ] && echo "解析源模式: ./schemas/starrocks_schema.yml" || echo "Parsing source schema: ./schemas/starrocks_schema.yml"
-            ;;
-        found_tables)
-            [ "$LANGUAGE" = "zh" ] && echo "发现 5 张表和 42 个字段。" || echo "Found 5 tables and 42 columns."
-            ;;
-        parse_trace)
-            [ "$LANGUAGE" = "zh" ] && echo "解析源追踪: ./traces/starrocks_trace.jsonl" || echo "Parsing source trace: ./traces/starrocks_trace.jsonl"
-            ;;
-        read_events)
-            [ "$LANGUAGE" = "zh" ] && echo "读取 1,250,831 条查询事件。" || echo "Read 1,250,831 query events."
-            ;;
-        templating)
-            [ "$LANGUAGE" = "zh" ] && echo "生成 SQL 模板..." || echo "Templating SQL queries..."
-            ;;
-        gen_templates)
-            [ "$LANGUAGE" = "zh" ] && echo "生成 152 个唯一 SQL 模板。" || echo "Generated 152 unique SQL templates."
-            ;;
-        analyzing)
-            [ "$LANGUAGE" = "zh" ] && echo "分析查询参数分布..." || echo "Analyzing query parameter distributions..."
-            ;;
-        modeled)
-            [ "$LANGUAGE" = "zh" ] && echo "已建模参数分布: timestamp, tenant_id, src_ip。" || echo "Modeled distributions for timestamp, tenant_id, src_ip."
-            ;;
-        warn_agent)
-            [ "$LANGUAGE" = "zh" ] && echo "⚠ 参数 'user_agent' 基数过高，使用随机采样。" || echo "⚠ Parameter 'user_agent' has high cardinality, using random sampling."
-            ;;
-        transform_schema)
-            [ "$LANGUAGE" = "zh" ] && echo "转换为 ClickHouse 目标模式..." || echo "Transforming schema for ClickHouse..."
-            ;;
-        mapping)
-            [ "$LANGUAGE" = "zh" ] && echo "映射类型 'BITMAP' → 'AggregateFunction(groupBitmap, UInt64)'。" || echo "Mapping type 'BITMAP' to 'AggregateFunction(groupBitmap, UInt64)'."
-            ;;
-        translating)
-            [ "$LANGUAGE" = "zh" ] && echo "翻译 SQL 模板为 ClickHouse 方言..." || echo "Translating SQL templates to ClickHouse dialect..."
-            ;;
-        applied_rules)
-            [ "$LANGUAGE" = "zh" ] && echo "应用了 12 条方言转换规则。" || echo "Applied 12 dialect-specific rewrite rules."
-            ;;
-        connect_target)
-            [ "$LANGUAGE" = "zh" ] && echo "连接目标数据库 clickhouse-host:9000..." || echo "Connecting to target database at clickhouse-host:9000..."
-            ;;
-        conn_ok)
-            [ "$LANGUAGE" = "zh" ] && echo "连接成功。" || echo "Connection successful."
-            ;;
-        preparing)
-            [ "$LANGUAGE" = "zh" ] && echo "准备基准测试任务..." || echo "Preparing benchmark workload..."
-            ;;
-        workload_cfg)
-            [ "$LANGUAGE" = "zh" ] && echo "并发: 64 工作线程, 时长: 5 分钟, QPS 规模: 1.5x" || echo "Concurrency: 64 workers, Duration: 5m0s, QPS Scale: 1.5x"
-            ;;
-        starting_bench)
-            [ "$LANGUAGE" = "zh" ] && echo "开始基准测试..." || echo "Starting benchmark..."
-            ;;
-        finished)
-            [ "$LANGUAGE" = "zh" ] && echo "基准测试完成。" || echo "Benchmark finished."
-            ;;
-        gen_report)
-            [ "$LANGUAGE" = "zh" ] && echo "生成验证报告..." || echo "Generating validation report..."
-            ;;
-        comparing)
-            [ "$LANGUAGE" = "zh" ] && echo "对比生成的负载指标与源追踪。" || echo "Comparing generated workload metrics against source trace."
-            ;;
-        report_saved)
-            [ "$LANGUAGE" = "zh" ] && echo "报告已保存到 ./reports/report-20250816-1630.md" || echo "Report saved to ./reports/report-20250816-1630.md"
-            ;;
+        cfg_loaded) [ "$LANGUAGE" = "zh" ] && echo "配置已从 ./config.yaml 加载" || echo "Configuration loaded from ./config.yaml" ;;
+        src_db) [ "$LANGUAGE" = "zh" ] && echo "源数据库: StarRocks, 目标数据库: ClickHouse" || echo "Source DB: StarRocks, Target DB: ClickHouse" ;;
+        parse_schema) [ "$LANGUAGE" = "zh" ] && echo "解析源模式: ./schemas/starrocks_schema.yml" || echo "Parsing source schema: ./schemas/starrocks_schema.yml" ;;
+        found_tables) [ "$LANGUAGE" = "zh" ] && echo "发现 5 张表和 42 个字段。" || echo "Found 5 tables and 42 columns." ;;
+        parse_trace) [ "$LANGUAGE" = "zh" ] && echo "解析源追踪: ./traces/starrocks_trace.jsonl" || echo "Parsing source trace: ./traces/starrocks_trace.jsonl" ;;
+        read_events) [ "$LANGUAGE" = "zh" ] && echo "读取 1,250,831 条查询事件。" || echo "Read 1,250,831 query events." ;;
+        templating) [ "$LANGUAGE" = "zh" ] && echo "生成 SQL 模板..." || echo "Templating SQL queries..." ;;
+        gen_templates) [ "$LANGUAGE" = "zh" ] && echo "生成 152 个唯一 SQL 模板。" || echo "Generated 152 unique SQL templates." ;;
+        analyzing) [ "$LANGUAGE" = "zh" ] && echo "分析查询参数分布..." || echo "Analyzing query parameter distributions..." ;;
+        modeled) [ "$LANGUAGE" = "zh" ] && echo "已建模参数分布: timestamp, tenant_id, src_ip。" || echo "Modeled distributions for timestamp, tenant_id, src_ip." ;;
+        warn_agent) [ "$LANGUAGE" = "zh" ] && echo "⚠ 参数 'user_agent' 基数过高，使用随机采样。" || echo "⚠ Parameter 'user_agent' has high cardinality, using random sampling." ;;
+        transform_schema) [ "$LANGUAGE" = "zh" ] && echo "转换为 ClickHouse 目标模式..." || echo "Transforming schema for ClickHouse..." ;;
+        mapping) [ "$LANGUAGE" = "zh" ] && echo "映射类型 'BITMAP' → 'AggregateFunction(groupBitmap, UInt64)'。" || echo "Mapping type 'BITMAP' to 'AggregateFunction(groupBitmap, UInt64)'." ;;
+        translating) [ "$LANGUAGE" = "zh" ] && echo "翻译 SQL 模板为 ClickHouse 方言..." || echo "Translating SQL templates to ClickHouse dialect..." ;;
+        applied_rules) [ "$LANGUAGE" = "zh" ] && echo "应用了 12 条方言转换规则。" || echo "Applied 12 dialect-specific rewrite rules." ;;
+        connect_target) [ "$LANGUAGE" = "zh" ] && echo "连接目标数据库 clickhouse-host:9000..." || echo "Connecting to target database at clickhouse-host:9000..." ;;
+        conn_ok) [ "$LANGUAGE" = "zh" ] && echo "连接成功。" || echo "Connection successful." ;;
+        preparing) [ "$LANGUAGE" = "zh" ] && echo "准备基准测试任务..." || echo "Preparing benchmark workload..." ;;
+        workload_cfg) [ "$LANGUAGE" = "zh" ] && echo "并发: 64 工作线程, 时长: 5 分钟, QPS 规模: 1.5x" || echo "Concurrency: 64 workers, Duration: 5m0s, QPS Scale: 1.5x" ;;
+        starting_bench) [ "$LANGUAGE" = "zh" ] && echo "开始基准测试..." || echo "Starting benchmark..." ;;
+        finished) [ "$LANGUAGE" = "zh" ] && echo "基准测试完成。" || echo "Benchmark finished." ;;
+        gen_report) [ "$LANGUAGE" = "zh" ] && echo "生成验证报告..." || echo "Generating validation report..." ;;
+        comparing) [ "$LANGUAGE" = "zh" ] && echo "对比生成的负载指标与源追踪。" || echo "Comparing generated workload metrics against source trace." ;;
+        report_saved) [ "$LANGUAGE" = "zh" ] && echo "报告已保存到 ./reports/report-20250816-1630.md" || echo "Report saved to ./reports/report-20250816-1630.md" ;;
     esac
 }
 
@@ -131,11 +83,29 @@ echo_info "$(msg mapping)"
 echo_step "$(msg translating)"
 echo_info "$(msg applied_rules)"
 
-# Phase 3: Workload Generation
-echo_step "$(msg connect_target)"
-echo_info "$(msg conn_ok)"
-echo_step "$(msg preparing)"
-echo_info "$(msg workload_cfg)"
+# Phase 3: Data Synthesis (新增)
+echo_step "$( [ "$LANGUAGE" = "zh" ] && echo "开始数据合成..." || echo "Starting Data Synthesis..." )"
+sleep 2
+echo_info "$( [ "$LANGUAGE" = "zh" ] && echo "连接源数据库，分析表与列分布..." || echo "Connecting to source DB, analyzing tables and column distributions..." )"
+sleep 2
+echo_info "$( [ "$LANGUAGE" = "zh" ] && echo "构建数据剖面（Data Profiles）..." || echo "Building data profiles..." )"
+sleep 2
+echo_step "$( [ "$LANGUAGE" = "zh" ] && echo "连接目标数据库..." || echo "Connecting to target DB..." )"
+sleep 1
+echo_info "$( [ "$LANGUAGE" = "zh" ] && echo "计算目标行数 (scale_factor=10)..." || echo "Calculating target rows (scale_factor=10)..." )"
+sleep 1
+
+for tbl in security_posture threat_intelligence user_risk; do
+    echo_step "$( [ "$LANGUAGE" = "zh" ] && echo "正在为表 [$tbl] 生成数据..." || echo "Generating data for table [$tbl]..." )"
+    for batch in {1..3}; do
+        echo_info "$( [ "$LANGUAGE" = "zh" ] && echo "插入批次 #$batch (10,000 行)..." || echo "Inserting batch #$batch (10,000 rows)..." )"
+        sleep 1
+    done
+    echo_step "$( [ "$LANGUAGE" = "zh" ] && echo "表 [$tbl] 数据合成完成。" || echo "Table [$tbl] synthesis completed." )"
+done
+
+echo_step "$( [ "$LANGUAGE" = "zh" ] && echo "数据合成完成。" || echo "Data Synthesis completed." )"
+sleep 2
 
 # Phase 4: Execution
 echo_step "$(msg starting_bench)"
