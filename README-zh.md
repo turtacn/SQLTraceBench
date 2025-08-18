@@ -3,7 +3,7 @@
   
   # SQLTraceBench
   
-  [![构建状态](https://github.com/turtacn/SQLTraceBench/workflows/CI/badge.svg)](https://github.com/turtacn/SQLTraceBench/actions)
+  <!--[![构建状态](https://github.com/turtacn/SQLTraceBench/workflows/CI/badge.svg)](https://github.com/turtacn/SQLTraceBench/actions)-->
   [![Go Report Card](https://goreportcard.com/badge/github.com/turtacn/SQLTraceBench)](https://goreportcard.com/report/github.com/turtacn/SQLTraceBench)
   [![许可证](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
   [![GoDoc](https://godoc.org/github.com/turtacn/SQLTraceBench?status.svg)](https://godoc.org/github.com/turtacn/SQLTraceBench)
