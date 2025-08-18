@@ -245,4 +245,3 @@ SQLTraceBench builds upon and integrates with several excellent open-source proj
 <div align="center">
   Made with ❤️ by the SQLTraceBench Community
 </div>
-```
