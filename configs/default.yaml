@@ -1,0 +1,21 @@
+logging:
+  level: info
+  format: text
+
+benchmark:
+  duration: 5m
+  qps: 100
+  max_concurrency: 10
+
+databases:
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    user: "root"
+    password: ""
+    max_conns: 50
+  clickhouse:
+    host: "127.0.0.1"
+    port: 9000
+    user: "default"
+    password: ""

@@ -1,0 +1,1 @@
+[{"timestamp":"2024-01-01T12:00:00Z","query":"SELECT * FROM orders WHERE id = 1234","execution_time_ms":42,"rows_returned":1,"rows_scanned":1,"database_name":"test","user_name":"bob","client_ip":"192.168.1.100"}]
