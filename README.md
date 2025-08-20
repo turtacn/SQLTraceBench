@@ -18,6 +18,8 @@
 
 SQLTraceBench is an innovative open-source project that transforms real SQL traces and database schemas into comprehensive, cross-database benchmark workloads. Our mission is to enable seamless performance comparison and validation across different database systems through intelligent trace analysis, schema conversion, and workload generation.
 
+![Demo](demo.gif)
+
 ## 🔥 Why SQLTraceBench?
 
 ### The Problem We Solve
