@@ -4,7 +4,7 @@ APP := sqltracebench
 LDFLAGS := -w -s -X github.com/turtacn/SQLTraceBench/cmd.Version=$(shell cat VERSION)
 
 build: clean
-	go build -ldflags '$(LDFLAGS)' -o bin/$(APP) ./cmd
+	go build -ldflags '$(LDFLAGS)' -o bin/$(APP) ./cmd/sql_trace_bench
 
 clean:
 	rm -rf bin/
