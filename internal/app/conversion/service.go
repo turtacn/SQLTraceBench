@@ -36,5 +36,5 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath, outYaml
 	tpls, _ := s.templateSvc.ExtractTemplates(ctx, traces)
 	f, _ := os.Create(outYaml)
 	defer f.Close()
-	return json.NewEncoder(f).Encode(map[string]interface{}{"templates_count": len(tpls)})
+	return json.NewEncoder(f).Encode(map[string]interface{}{"templates": tpls})
 }

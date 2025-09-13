@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -9,11 +10,11 @@ import (
 
 type ClickHouseConnector struct {
 	*BaseConnector
-	conn clickhouse.Conn
+	db *sql.DB
 }
 
 func NewClickHouseConnector(cfg Config) (*ClickHouseConnector, error) {
-	conn, err := clickhouse.Open(&clickhouse.Options{
+	db := clickhouse.OpenDB(&clickhouse.Options{
 		Addr: []string{fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)},
 		Auth: clickhouse.Auth{
 			Database: cfg.Database,
@@ -21,29 +22,29 @@ func NewClickHouseConnector(cfg Config) (*ClickHouseConnector, error) {
 			Password: cfg.Password,
 		},
 	})
-	if err != nil {
+
+	if err := db.Ping(); err != nil {
 		return nil, err
 	}
+
 	return &ClickHouseConnector{
 		BaseConnector: &BaseConnector{cfg: cfg},
-		conn:          conn,
+		db:            db,
 	}, nil
 }
 
-func (c *ClickHouseConnector) Ping(_ context.Context) error {
-	return c.conn.Ping(context.Background())
+func (c *ClickHouseConnector) Ping(ctx context.Context) error {
+	return c.db.PingContext(ctx)
 }
 
-func (c *ClickHouseConnector) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	rows, err := c.conn.Query(ctx, sql, args...)
-	return clickhouseRows{rows}, err
+func (c *ClickHouseConnector) Query(ctx context.Context, query string, args ...interface{}) (Rows, error) {
+	rows, err := c.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (c *ClickHouseConnector) Close() error {
-	return c.conn.Close()
-}
-
-// simple wrapper
-type clickhouseRows struct {
-	clickhouse.Rows
+	return c.db.Close()
 }

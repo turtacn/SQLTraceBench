@@ -4,7 +4,6 @@ import (
 	"context"
 	"hash/fnv"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
@@ -16,7 +15,7 @@ type TemplateService interface {
 }
 
 type DefaultTemplateService struct {
-	repo repositories.Templaterpository
+	repo repositories.TemplateRepository
 }
 
 func NewTemplateService(repo repositories.TemplateRepository) TemplateService {

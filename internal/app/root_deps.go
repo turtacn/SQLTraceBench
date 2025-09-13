@@ -1,11 +1,11 @@
 package app
 
 import (
+	"github.com/turtacn/SQLTraceBench/internal/app/conversion"
 	"github.com/turtacn/SQLTraceBench/internal/app/execution"
 	"github.com/turtacn/SQLTraceBench/internal/app/validation"
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 	"github.com/turtacn/SQLTraceBench/internal/infrastructure/database"
-	"github.com/turtacn/SQLTraceBench/internal/infrastructure/storage"
 )
 
 type Root struct {
@@ -19,13 +19,12 @@ type Root struct {
 	ValidationSvc services.ValidationService
 
 	// app services
-	Conversion execution.Service
+	Conversion conversion.Service
 	Execution  execution.Service
 	Validation validation.Service
 }
 
 func NewRoot(cfg database.Config) *Root {
-	mems := storage.NewMemoryStorage()
 	// simple instantiation
 	svc := &Root{
 		Config: cfg,
@@ -37,6 +36,7 @@ func NewRoot(cfg database.Config) *Root {
 	svc.ValidationSvc = services.NewValidationService()
 
 	// app
+	svc.Conversion = conversion.NewService(svc.TemplateSvc, svc.SchemaSvc)
 	svc.Execution = execution.NewService()
 	svc.Validation = validation.NewService(svc.Execution, svc.ValidationSvc)
 

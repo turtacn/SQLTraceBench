@@ -9,6 +9,7 @@ import (
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 	"github.com/turtacn/SQLTraceBench/internal/domain/repositories"
+	"github.com/turtacn/SQLTraceBench/pkg/types"
 )
 
 type ParameterService interface {
@@ -32,9 +33,9 @@ func (s *DefaultParameterService) BuildModel(_ context.Context, traces []models.
 		// naive integer scan (MVP only)
 		re := regexp.MustCompile(`(?:=|in)\s*(\d+)`)
 		matches := re.FindAllStringSubmatch(strings.ToLower(t.Query), -1)
-		for _, m := range matches {
+		for range matches {
 			key := "param"
-			stat := models.ParamStats{DistributionType: models.TypeInteger}
+			stat := models.ParamStats{Type: types.TypeInteger}
 			if _, ok := pm.Parameters[key]; !ok {
 				pm.Parameters[key] = stat
 			}

@@ -58,7 +58,7 @@ SQLTraceBench addresses these pain points by:
 
 ## 🏗️ Architecture Overview
 
-SQLTraceBench follows a modular, plugin-based architecture designed for extensibility and maintainability. For detailed technical architecture, see our [Architecture Documentation](docs/architecture.md).
+SQLTraceBench follows a modular, plugin-based architecture designed for extensibility and maintainability. For detailed technical architecture, see our [Architecture Documentation (English)](docs/architecture_en.md) | [中文](docs/architecture.md).
 
 ```mermaid
 graph LR
@@ -192,28 +192,7 @@ ORDER BY w_id;
 
 We welcome contributions from the community! SQLTraceBench is built by developers, for developers.
 
-### How to Contribute
-
-1. **Fork** the repository
-2. **Create** your feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add some amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Setup
-
-```bash
-# Clone and setup development environment
-git clone https://github.com/turtacn/SQLTraceBench.git
-cd SQLTraceBench
-make setup-dev
-
-# Run tests
-make test
-
-# Run linting
-make lint
-```
+Please read our [**Contributing Guide**](CONTRIBUTING.md) to learn how you can get involved.
 
 ### Areas We Need Help
 

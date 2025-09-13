@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"sync"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 )
@@ -12,10 +11,10 @@ type WorkloadService interface {
 }
 
 type DefaultWorkloadService struct {
-	paramSvc models.ParameterService
+	paramSvc ParameterService
 }
 
-func NewWorkloadService(ps models.ParameterService) WorkloadService {
+func NewWorkloadService(ps ParameterService) WorkloadService {
 	return &DefaultWorkloadService{paramSvc: ps}
 }
 

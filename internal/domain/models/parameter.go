@@ -43,6 +43,7 @@ func (z *ZipfianDistribution) GetMean() float64 {
 }
 
 type GlobalStatistics struct {
+	DataTimestamp     time.Time
 	TotalQueries      int64
 	UniqueParameters  int
 	ParameterCoverage float64

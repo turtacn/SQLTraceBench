@@ -35,12 +35,10 @@ func RunPipeline(cmd *cobra.Command, _ []string) error {
 	}
 
 	root := app.NewRoot(cfg)
-	root.Cfg = cfg
 
 	log := utils.GetGlobalLogger()
 	log.Info("Step 1: converting trace...")
-	_, err := root.Conversion.ConvertFromFile(ctx, "trace.json", "templates.yaml")
-	if err != nil {
+	if err := root.Conversion.ConvertFromFile(ctx, "trace.json", "templates.yaml"); err != nil {
 		log.Error("convert step failed", utils.Field{Key: "error", Value: err})
 		return err
 	}

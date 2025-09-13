@@ -25,8 +25,12 @@ func (s *DefaultService) GenerateWorkload(ctx context.Context, yamlTplPath, yaml
 	defer file.Close()
 	_ = json.NewDecoder(file).Decode(map[string][]models.SQLTemplate{"templates": tpls})
 
+	pointerTpls := make([]*models.SQLTemplate, len(tpls))
+	for i := range tpls {
+		pointerTpls[i] = &tpls[i]
+	}
 	pm := &models.ParameterModel{} // dummy
-	wl := s.workloadSvc.GenerateWorkload(ctx, tpls, pm)
+	wl := s.workloadSvc.GenerateWorkload(ctx, pointerTpls, pm)
 
 	f, _ := os.Create(yamlOutPath)
 	defer f.Close()

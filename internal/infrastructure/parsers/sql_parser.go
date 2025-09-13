@@ -23,7 +23,7 @@ func (bp *BaseParser) ListTables(ast string) (tables []string) {
 	re := regexp.MustCompile(`(?i)(?:FROM|JOIN)\s+([^\s(,\)]+)`)
 	matches := re.FindAllStringSubmatch(ast, -1)
 	for _, m := range matches {
-		tbl := strings.Trim(m[1], "`\"\'")
+		tbl := strings.Trim(m[1], "`\"'")
 		tables = append(tables, tbl)
 	}
 	return unique(tables)
