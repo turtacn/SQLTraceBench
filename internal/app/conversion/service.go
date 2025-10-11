@@ -9,32 +9,47 @@ import (
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 )
 
+// Service is the interface for the conversion service.
 type Service interface {
 	ConvertFromFile(ctx context.Context, tracePath, outYaml string) error
 }
 
+// DefaultService is the default implementation of the conversion service.
 type DefaultService struct {
-	templateSvc services.TemplateService
-	schemaSvc   services.SchemaService
+	templateSvc *services.TemplateService
 }
 
-func NewService(ts services.TemplateService, ss services.SchemaService) Service {
-	return &DefaultService{templateSvc: ts, schemaSvc: ss}
+// NewService creates a new DefaultService.
+func NewService() Service {
+	return &DefaultService{templateSvc: services.NewTemplateService()}
 }
 
+// ConvertFromFile reads SQL traces from a file, converts them to templates, and saves them to a YAML file.
 func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath, outYaml string) error {
-	var traces []models.SQLTrace
-	file, _ := os.Open(tracePath)
+	file, err := os.Open(tracePath)
+	if err != nil {
+		return err
+	}
 	defer file.Close()
+
+	var traces []models.SQLTrace
 	dec := json.NewDecoder(file)
 	for dec.More() {
 		var t models.SQLTrace
-		_ = dec.Decode(&t)
+		if err := dec.Decode(&t); err != nil {
+			return err
+		}
 		traces = append(traces, t)
 	}
 
-	tpls, _ := s.templateSvc.ExtractTemplates(ctx, traces)
-	f, _ := os.Create(outYaml)
+	tc := models.TraceCollection{Traces: traces}
+	tpls := s.templateSvc.ExtractTemplates(tc)
+
+	f, err := os.Create(outYaml)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
+
 	return json.NewEncoder(f).Encode(map[string]interface{}{"templates": tpls})
 }

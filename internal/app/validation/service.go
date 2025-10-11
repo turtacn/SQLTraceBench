@@ -5,39 +5,44 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/turtacn/SQLTraceBench/internal/app/execution"
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 	"github.com/turtacn/SQLTraceBench/pkg/utils"
 )
 
+// Service is the interface for the validation service.
 type Service interface {
-	Validate(ctx context.Context, execOutPath string) error
+	Validate(ctx context.Context, base, cand *models.PerformanceMetrics, threshold float64) (*models.ValidationReport, error)
 }
 
+// DefaultService is the default implementation of the validation service.
 type DefaultService struct {
-	execService   execution.Service
-	validationSvc services.ValidationService
+	validationSvc *services.ValidationService
 	log           *utils.Logger
 }
 
-func NewService(execService execution.Service, valSvc services.ValidationService) Service {
+// NewService creates a new DefaultService.
+func NewService() Service {
 	return &DefaultService{
-		execService:   execService,
-		validationSvc: valSvc,
+		validationSvc: services.NewValidationService(),
 		log:           utils.GetGlobalLogger(),
 	}
 }
 
-func (s *DefaultService) Validate(ctx context.Context, execOutPath string) error {
-	var synth models.PerformanceMetrics
-	f, _ := os.Open(execOutPath)
-	defer f.Close()
-	_ = json.NewDecoder(f).Decode(&synth)
+// Validate compares two performance metrics and saves the report to a file.
+func (s *DefaultService) Validate(ctx context.Context, base, cand *models.PerformanceMetrics, threshold float64) (*models.ValidationReport, error) {
+	report := s.validationSvc.Validate(base, cand, threshold)
+	s.log.Info("validation done", utils.Field{Key: "passed", Value: report.Pass})
 
-	report, _ := s.validationSvc.Validate(ctx, &models.PerformanceMetrics{}, &synth)
-	s.log.Info("validation done", utils.Field{Key: "passed", Value: report.Passed})
-	out, _ := os.Create("validation.json")
+	out, err := os.Create("validation.json")
+	if err != nil {
+		return nil, err
+	}
 	defer out.Close()
-	return json.NewEncoder(out).Encode(report)
+
+	if err := json.NewEncoder(out).Encode(report); err != nil {
+		return nil, err
+	}
+
+	return report, nil
 }

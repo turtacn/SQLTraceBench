@@ -1,93 +1,60 @@
+// Package utils provides utility functions, such as logging.
 package utils
 
 import (
-	"io"
+	"fmt"
+	"log"
 	"os"
-
-	"github.com/sirupsen/logrus"
-	"github.com/turtacn/SQLTraceBench/pkg/types"
 )
 
+// Field is a key-value pair used for structured logging.
 type Field struct {
 	Key   string
 	Value interface{}
 }
 
+// Logger is a simplified logger that wraps the standard log.Logger.
 type Logger struct {
-	entry *logrus.Entry
+	l *log.Logger
+}
+
+// NewLogger creates a new Logger instance.
+// For this minimal implementation, level and format are ignored.
+func NewLogger(level, format string, output *os.File) *Logger {
+	return &Logger{l: log.New(os.Stdout, "", log.LstdFlags)}
+}
+
+// Info logs an informational message.
+func (lg *Logger) Info(msg string, fields ...Field) {
+	lg.l.Println("[INFO]", msg, fmtFields(fields...))
+}
+
+// Error logs an error message.
+func (lg *Logger) Error(msg string, fields ...Field) {
+	lg.l.Println("[ERROR]", msg, fmtFields(fields...))
+}
+
+// fmtFields formats a slice of Fields into a string for logging.
+func fmtFields(fields ...Field) string {
+	var s string
+	for _, f := range fields {
+		s += fmt.Sprintf(" %s=%v", f.Key, f.Value)
+	}
+	return s
 }
 
 var globalLogger *Logger
 
-func NewLogger(level string, format string, output io.Writer) *Logger {
-	logger := logrus.New()
-	switch level {
-	case "debug":
-		logger.SetLevel(logrus.DebugLevel)
-	case "warn":
-		logger.SetLevel(logrus.WarnLevel)
-	case "error":
-		logger.SetLevel(logrus.ErrorLevel)
-	default:
-		logger.SetLevel(logrus.InfoLevel)
-	}
-	if format == "json" {
-		logger.SetFormatter(&logrus.JSONFormatter{})
-	} else {
-		logger.SetFormatter(&logrus.TextFormatter{})
-	}
-	if output == nil {
-		output = os.Stdout
-	}
-	logger.SetOutput(output)
-	return &Logger{entry: logrus.NewEntry(logger)}
-}
-
+// SetGlobalLogger sets the global logger instance.
 func SetGlobalLogger(logger *Logger) {
 	globalLogger = logger
 }
 
+// GetGlobalLogger returns the global logger instance.
 func GetGlobalLogger() *Logger {
 	if globalLogger == nil {
+		// Provide a default logger if none is set
 		globalLogger = NewLogger("info", "text", nil)
 	}
 	return globalLogger
 }
-
-func (l *Logger) Debug(msg string, fields ...Field) {
-	l.entry.WithFields(fieldsToMap(fields)).Debug(msg)
-}
-
-func (l *Logger) Info(msg string, fields ...Field) {
-	l.entry.WithFields(fieldsToMap(fields)).Info(msg)
-}
-
-func (l *Logger) Warn(msg string, fields ...Field) {
-	l.entry.WithFields(fieldsToMap(fields)).Warn(msg)
-}
-
-func (l *Logger) Error(msg string, fields ...Field) {
-	l.entry.WithFields(fieldsToMap(fields)).Error(msg)
-}
-
-func (l *Logger) Fatal(msg string, fields ...Field) {
-	l.entry.WithFields(fieldsToMap(fields)).Fatal(msg)
-}
-
-func (l *Logger) WithFields(fields ...Field) *Logger {
-	return &Logger{entry: l.entry.WithFields(fieldsToMap(fields))}
-}
-
-func (l *Logger) WithError(err *types.SQLTraceBenchError) *Logger {
-	return &Logger{entry: l.entry.WithField("error", err)}
-}
-
-func fieldsToMap(fields []Field) map[string]interface{} {
-	m := make(map[string]interface{})
-	for _, f := range fields {
-		m[f.Key] = f.Value
-	}
-	return m
-}
-
-//Personal.AI order the ending

@@ -1,47 +1,34 @@
 package models
 
-import (
-	"time"
-)
+import "time"
 
-type ValidationReport struct {
-	OriginalStats  PerformanceMetrics
-	SyntheticStats PerformanceMetrics
-	DeviationQPS   float64 // percentage
-	Passed         bool
-	GeneratedAt    time.Time
-}
-
+// PerformanceMetrics holds the key performance indicators from a benchmark run.
 type PerformanceMetrics struct {
+	// QueriesExecuted is the total number of queries run during the benchmark.
 	QueriesExecuted int64
-	Duration        time.Duration
-	AvgQPS          float64
-	MinLatency      float64
-	MaxLatency      float64
+	// Duration is the total time taken for the benchmark to complete.
+	Duration time.Duration
 }
 
-func (s *PerformanceMetrics) QPS() float64 {
-	if s.Duration <= 0 {
+// QPS calculates the average queries per second.
+// It returns 0 if the duration is zero to avoid division by zero errors.
+func (pm *PerformanceMetrics) QPS() float64 {
+	if pm.Duration.Seconds() == 0 {
 		return 0
 	}
-	return float64(s.QueriesExecuted) / s.Duration.Seconds()
+	return float64(pm.QueriesExecuted) / pm.Duration.Seconds()
 }
 
-func (r *ValidationReport) Compare(original, synthetic PerformanceMetrics) {
-	r.OriginalStats = original
-	r.SyntheticStats = synthetic
-	delta := synthetic.QPS() - original.QPS()
-	if original.QPS() != 0 {
-		r.DeviationQPS = (delta / original.QPS()) * 100
-	}
-	r.Passed = abs(r.DeviationQPS) <= 50 // relaxed threshold for MVP
+// ValidationReport contains the results of a comparison between two benchmark runs.
+type ValidationReport struct {
+	// BaseQPS is the QPS of the base (or control) benchmark run.
+	BaseQPS float64
+	// CandidateQPS is the QPS of the candidate (or test) benchmark run.
+	CandidateQPS float64
+	// DiffQPS is the difference in QPS between the candidate and base runs.
+	DiffQPS float64
+	// Threshold is the acceptable performance degradation threshold.
+	Threshold float64
+	// Pass indicates whether the candidate's performance is within the acceptable threshold.
+	Pass bool
 }
-
-func abs(v float64) float64 {
-	if v < 0 {
-		return -v
-	}
-	return v
-}
-
-//Personal.AI order the ending

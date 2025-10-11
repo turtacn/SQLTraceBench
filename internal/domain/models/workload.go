@@ -1,54 +1,8 @@
 package models
 
-import (
-	"context"
-	"sync"
-	"time"
-)
-
+// BenchmarkWorkload represents a set of queries to be executed by the benchmark.
+// It is generated from a collection of SQLTemplates and a set of parameters.
 type BenchmarkWorkload struct {
-	WorkloadID string
-	Queries    []WorkloadQuery
-	Config     ExecutionConfig
-	Schedule   QuerySchedule
+	// Queries is a list of all the SQL queries to be executed in the workload.
+	Queries []string
 }
-
-type WorkloadQuery struct {
-	ID           string
-	SQL          string
-	Weight       float64
-	ExpectedTime float64 // ms
-}
-
-type ExecutionConfig struct {
-	TargetQPS      float64
-	MaxConcurrency int
-	Duration       time.Duration
-	Warmup         time.Duration
-	DatabaseType   string // "starrocks" | "clickhouse"
-}
-
-type QuerySchedule struct {
-	mu      sync.RWMutex
-	queries []WorkloadQuery
-	closed  bool
-}
-
-func (qs *QuerySchedule) GetNextQuery() (WorkloadQuery, bool) {
-	qs.mu.RLock()
-	defer qs.mu.RUnlock()
-	if qs.closed || len(qs.queries) == 0 {
-		return WorkloadQuery{}, false
-	}
-	return qs.queries[0], true
-}
-
-func (qs *QuerySchedule) Close() {
-	qs.mu.Lock()
-	qs.closed = true
-	qs.mu.Unlock()
-}
-
-func (w *BenchmarkWorkload) Execute(ctx context.Context) {}
-
-//Personal.AI order the ending

@@ -1,3 +1,0 @@
-{"timestamp": "2025-08-15T10:00:01Z", "query": "SELECT w_name, w_tax FROM warehouse WHERE w_id = 1", "execution_time_ms": 2.5, "rows_returned": 1}
-{"timestamp": "2025-08-15T10:00:02Z", "query": "SELECT w_name, w_tax FROM warehouse WHERE w_id = 5", "execution_time_ms": 2.8, "rows_returned": 1}
-{"timestamp": "2025-08-15T10:00:03Z", "query": "SELECT * FROM warehouse", "execution_time_ms": 15.0, "rows_returned": 10}

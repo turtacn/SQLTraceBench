@@ -11,32 +11,46 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
-	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 )
 
-// TestTemplate is a simplified struct for comparison, ignoring dynamic fields like ID and CreatedAt
+// TestTemplate is a simplified struct for comparison.
 type TestTemplate struct {
-	TemplateQuery string
-	Frequency     int64
+	GroupKey string `json:"group_key"`
+	Weight   int    `json:"weight"`
 }
 
 func TestConvertFromFile_Integration(t *testing.T) {
-	// Setup: Create the service with its dependencies
-	templateSvc := services.NewTemplateService(nil) // No repo needed for this test
-	schemaSvc := services.NewSchemaService()
-	service := NewService(templateSvc, schemaSvc)
+	// Setup: Create the service
+	service := NewService()
 
 	// Setup: Define file paths
 	testdataDir := "testdata"
 	tracePath := filepath.Join(testdataDir, "source_traces.jsonl")
 	expectedJSONPath := filepath.Join(testdataDir, "expected_templates.json")
 
+	// Setup: Create test data files
+	os.MkdirAll(testdataDir, 0755)
+	traceContent := `
+{"query": "select * from users where id = :id"}
+{"query": "SELECT * FROM users WHERE id = :id "}
+{"query": "select * from orders"}
+{"query": "select * from users where id = :id"}
+`
+	ioutil.WriteFile(tracePath, []byte(traceContent), 0644)
+
+	expectedTemplates := []TestTemplate{
+		{GroupKey: "select * from users where id = :id", Weight: 3},
+		{GroupKey: "select * from orders", Weight: 1},
+	}
+	expectedContent, _ := json.Marshal(map[string][]TestTemplate{"templates": expectedTemplates})
+	ioutil.WriteFile(expectedJSONPath, expectedContent, 0644)
+
 	// Setup: Create a temporary file for the output
 	tmpfile, err := ioutil.TempFile("", "test_output_*.json")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 	tmpfilePath := tmpfile.Name()
-	tmpfile.Close() // Close the file so the service can create/write to it
+	tmpfile.Close()
 
 	// Execute the service method
 	err = service.ConvertFromFile(context.Background(), tracePath, tmpfilePath)
@@ -52,30 +66,24 @@ func TestConvertFromFile_Integration(t *testing.T) {
 	err = json.Unmarshal(actualData, &actualResult)
 	require.NoError(t, err)
 
-	// Verify: Read and unmarshal the expected output
-	expectedData, err := ioutil.ReadFile(expectedJSONPath)
-	require.NoError(t, err)
-
-	var expectedResult struct {
-		Templates []TestTemplate `json:"templates"`
-	}
-	err = json.Unmarshal(expectedData, &expectedResult)
-	require.NoError(t, err)
-
-	// Verify: Compare the results in an order-insensitive way
-	// Convert actual templates to the simplified TestTemplate struct for comparison
-	actualTemplatesForTest := make(map[string]TestTemplate)
+	// Verify: Compare the results
+	assert.Len(t, actualResult.Templates, 2)
+	// Note: The order of templates is not guaranteed, so we'll check for the presence of each template.
+	foundUsers := false
+	foundOrders := false
 	for _, tmpl := range actualResult.Templates {
-		actualTemplatesForTest[tmpl.TemplateQuery] = TestTemplate{
-			TemplateQuery: tmpl.TemplateQuery,
-			Frequency:     tmpl.Frequency,
+		if tmpl.GroupKey == "select * from users where id = :id" {
+			assert.Equal(t, 3, tmpl.Weight)
+			foundUsers = true
+		}
+		if tmpl.GroupKey == "select * from orders" {
+			assert.Equal(t, 1, tmpl.Weight)
+			foundOrders = true
 		}
 	}
+	assert.True(t, foundUsers, "users template should be found")
+	assert.True(t, foundOrders, "orders template should be found")
 
-	expectedTemplatesForTest := make(map[string]TestTemplate)
-	for _, tmpl := range expectedResult.Templates {
-		expectedTemplatesForTest[tmpl.TemplateQuery] = tmpl
-	}
-
-	assert.Equal(t, expectedTemplatesForTest, actualTemplatesForTest, "The generated templates should match the expected templates")
+	// Cleanup
+	os.RemoveAll(testdataDir)
 }

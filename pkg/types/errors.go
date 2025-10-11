@@ -1,76 +1,42 @@
+// Package types contains shared data structures and constants used across the application.
 package types
 
-import (
-	"fmt"
-	"time"
-)
+import "fmt"
 
-type ErrorCode int
+// ErrorCode defines a typed string for application-specific error codes.
+type ErrorCode string
 
+// Defines the set of standard error codes.
 const (
-	ErrUnknown ErrorCode = iota
-	ErrInvalidInput
-	ErrParseFailed
-	ErrConversionFailed
-	ErrDatabaseConnection
-	ErrPluginNotFound
-	ErrValidationFailed
-	ErrExecutionFailed
-	ErrReportGeneration
+	ErrInvalidInput ErrorCode = "invalid_input"
+	ErrParseFailed  ErrorCode = "parse_failed"
+	ErrNotFound     ErrorCode = "not_found"
+	ErrInternal     ErrorCode = "internal"
 )
 
-func (e ErrorCode) String() string {
-	return [...]string{
-		"ErrUnknown",
-		"ErrInvalidInput",
-		"ErrParseFailed",
-		"ErrConversionFailed",
-		"ErrDatabaseConnection",
-		"ErrPluginNotFound",
-		"ErrValidationFailed",
-		"ErrExecutionFailed",
-		"ErrReportGeneration",
-	}[e]
-}
-
+// SQLTraceBenchError is a custom error type for the application.
+// It includes a machine-readable error code, a human-readable message,
+// and the underlying error that caused it.
 type SQLTraceBenchError struct {
-	Code      ErrorCode
-	Message   string
-	Details   string
-	Component string
-	Timestamp time.Time
-	Cause     error
+	Code    ErrorCode
+	Message string
+	Cause   error
 }
 
+// Error returns the string representation of the SQLTraceBenchError.
 func (e *SQLTraceBenchError) Error() string {
 	if e.Cause != nil {
-		return fmt.Sprintf("[%s] %s: %s (cause: %v)", e.Component, e.Code, e.Message, e.Cause)
+		return fmt.Sprintf("%s: %s (caused by: %v)", e.Code, e.Message, e.Cause)
 	}
-	return fmt.Sprintf("[%s] %s: %s", e.Component, e.Code, e.Message)
+	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
+// NewError creates a new SQLTraceBenchError.
 func NewError(code ErrorCode, message string) *SQLTraceBenchError {
-	return &SQLTraceBenchError{
-		Code:      code,
-		Message:   message,
-		Timestamp: time.Now(),
-	}
+	return &SQLTraceBenchError{Code: code, Message: message}
 }
 
+// WrapError creates a new SQLTraceBenchError that wraps an existing error.
 func WrapError(code ErrorCode, message string, cause error) *SQLTraceBenchError {
-	return &SQLTraceBenchError{
-		Code:      code,
-		Message:   message,
-		Cause:     cause,
-		Timestamp: time.Now(),
-	}
+	return &SQLTraceBenchError{Code: code, Message: message, Cause: cause}
 }
-
-func IsErrorCode(err error, code ErrorCode) bool {
-	if e, ok := err.(*SQLTraceBenchError); ok {
-		return e.Code == code
-	}
-	return false
-}
-
-//Personal.AI order the ending

@@ -3,51 +3,63 @@ package models
 import (
 	"fmt"
 	"regexp"
-	"strings"
-	"time"
-
-	"github.com/turtacn/SQLTraceBench/pkg/types"
+	"sort"
 )
 
+// paramRe is a regular expression used to identify named parameters in a SQL query.
+// It looks for patterns like `:param_name`.
+var paramRe = regexp.MustCompile(`:[a-zA-Z_][a-zA-Z0-9_]*`)
+
+// SQLTemplate represents a normalized SQL query with its parameters extracted.
+// It serves as a blueprint for generating new queries with different parameter values.
 type SQLTemplate struct {
-	TemplateID    string          `json:"template_id"`
-	OriginalQuery string          `json:"original_query"`
-	TemplateQuery string          `json:"template_query"`
-	Parameters    []Parameter     `json:"parameters"`
-	QueryType     types.QueryType `json:"query_type"`
-	Tables        []string        `json:"tables"`
-	Frequency     int64           `json:"frequency"`
-	CreatedAt     time.Time       `json:"created_at"`
+	// RawSQL is the original, un-normalized SQL query.
+	RawSQL string
+	// GroupKey is a normalized version of the SQL query, used for grouping similar queries.
+	GroupKey string
+	// Weight is the frequency of this template in the trace, used for workload generation.
+	Weight int
+	// Parameters is a list of named parameters found in the query.
+	Parameters []string
 }
 
-type Parameter struct {
-	Name     string              `json:"name"`
-	Type     types.ParameterType `json:"type"`
-	Position int                 `json:"position"`
-}
-
-func (t *SQLTemplate) Validate() *types.SQLTraceBenchError {
-	if t.OriginalQuery == "" || t.TemplateQuery == "" {
-		return types.NewError(types.ErrInvalidInput, "query fields cannot be empty")
+// ExtractParameters finds all named parameters in the RawSQL query and populates the Parameters field.
+// The extracted parameters are sorted to ensure a consistent order.
+func (t *SQLTemplate) ExtractParameters() {
+	params := paramRe.FindAllString(t.RawSQL, -1)
+	paramSet := make(map[string]struct{})
+	for _, p := range params {
+		paramSet[p] = struct{}{}
 	}
-	return nil
+
+	t.Parameters = make([]string, 0, len(paramSet))
+	for p := range paramSet {
+		t.Parameters = append(t.Parameters, p)
+	}
+	sort.Strings(t.Parameters)
 }
 
+// GenerateQuery creates a new SQL query from the template by substituting the named parameters
+// with the provided values. It performs basic type checking to ensure that string values are
+// quoted correctly.
 func (t *SQLTemplate) GenerateQuery(params map[string]interface{}) (string, error) {
-	query := t.TemplateQuery
-	re := regexp.MustCompile(`\{\{(\w+)\}\}`)
-	query = re.ReplaceAllStringFunc(query, func(s string) string {
-		name := strings.Trim(s, "{}")
-		if val, ok := params[name]; ok {
-			return fmt.Sprintf("'%v'", val)
+	query := t.RawSQL
+	for _, p := range t.Parameters {
+		val, ok := params[p]
+		if !ok {
+			return "", fmt.Errorf("parameter %s not found in params map", p)
 		}
-		return s
-	})
+
+		var replacement string
+		switch v := val.(type) {
+		case string:
+			replacement = fmt.Sprintf("'%s'", v) // Basic string quoting
+		case int, int64, float64:
+			replacement = fmt.Sprintf("%v", v)
+		default:
+			return "", fmt.Errorf("unsupported parameter type for %s: %T", p, v)
+		}
+		query = regexp.MustCompile(p).ReplaceAllString(query, replacement)
+	}
 	return query, nil
 }
-
-func (t *SQLTemplate) ExtractParameters() map[string]interface{} {
-	return nil // TODO: actual extraction logic
-}
-
-//Personal.AI order the ending
