@@ -17,11 +17,15 @@ type Service interface {
 // DefaultService is the default implementation of the conversion service.
 type DefaultService struct {
 	templateSvc *services.TemplateService
+	parser      services.Parser
 }
 
 // NewService creates a new DefaultService.
-func NewService() Service {
-	return &DefaultService{templateSvc: services.NewTemplateService()}
+func NewService(parser services.Parser) Service {
+	return &DefaultService{
+		templateSvc: services.NewTemplateService(),
+		parser:      parser,
+	}
 }
 
 // ConvertFromFile reads SQL traces from a file and converts them to templates.
@@ -44,6 +48,16 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath string) 
 
 	tc := models.TraceCollection{Traces: traces}
 	tpls := s.templateSvc.ExtractTemplates(tc)
+
+	// Use the parser to extract table names for each template.
+	for i := range tpls {
+		tables, err := s.parser.ListTables(tpls[i].RawSQL)
+		if err != nil {
+			// In a real application, we might want to handle this error more gracefully.
+			continue
+		}
+		_ = tables // TODO: store the tables in the template
+	}
 
 	return tpls, nil
 }
