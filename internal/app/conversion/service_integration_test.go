@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/turtacn/SQLTraceBench/internal/infrastructure/parsers"
 )
 
 // TestTemplate is a simplified struct for comparison.
@@ -20,7 +21,8 @@ type TestTemplate struct {
 
 func TestConvertFromFile_Integration(t *testing.T) {
 	// Setup: Create the service
-	service := NewService()
+	parser := parsers.NewRegexParser() // Use the regex parser for this test
+	service := NewService(parser)
 
 	// Setup: Define file paths
 	testdataDir := "testdata"

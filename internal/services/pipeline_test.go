@@ -40,6 +40,10 @@ func TestE2EPipelineSmoke(t *testing.T) {
 	executionService := services.NewExecutionService(rc, 100*time.Millisecond)
 	base, err := executionService.RunBench(context.Background(), wl)
 	assert.NoError(t, err, "base run should not produce an error")
+	// Re-seed the sampler to get different results for the candidate run.
+	// In a real scenario, the two runs would be different.
+	// For this test, we want them to be the same.
+	executionService.Reset()
 	cand, err := executionService.RunBench(context.Background(), wl)
 	assert.NoError(t, err, "candidate run should not produce an error")
 

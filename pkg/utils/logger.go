@@ -1,10 +1,10 @@
-// Package utils provides utility functions, such as logging.
 package utils
 
 import (
-	"fmt"
-	"log"
+	"io"
 	"os"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Field is a key-value pair used for structured logging.
@@ -13,34 +13,56 @@ type Field struct {
 	Value interface{}
 }
 
-// Logger is a simplified logger that wraps the standard log.Logger.
+// Logger is a wrapper around logrus.
 type Logger struct {
-	l *log.Logger
+	*logrus.Logger
 }
 
 // NewLogger creates a new Logger instance.
-// For this minimal implementation, level and format are ignored.
-func NewLogger(level, format string, output *os.File) *Logger {
-	return &Logger{l: log.New(os.Stdout, "", log.LstdFlags)}
-}
-
-// Info logs an informational message.
-func (lg *Logger) Info(msg string, fields ...Field) {
-	lg.l.Println("[INFO]", msg, fmtFields(fields...))
-}
-
-// Error logs an error message.
-func (lg *Logger) Error(msg string, fields ...Field) {
-	lg.l.Println("[ERROR]", msg, fmtFields(fields...))
-}
-
-// fmtFields formats a slice of Fields into a string for logging.
-func fmtFields(fields ...Field) string {
-	var s string
-	for _, f := range fields {
-		s += fmt.Sprintf(" %s=%v", f.Key, f.Value)
+func NewLogger(level, format string, output io.Writer) *Logger {
+	logger := logrus.New()
+	switch level {
+	case "debug":
+		logger.SetLevel(logrus.DebugLevel)
+	case "warn":
+		logger.SetLevel(logrus.WarnLevel)
+	case "error":
+		logger.SetLevel(logrus.ErrorLevel)
+	default:
+		logger.SetLevel(logrus.InfoLevel)
 	}
-	return s
+
+	if format == "json" {
+		logger.SetFormatter(&logrus.JSONFormatter{})
+	} else {
+		logger.SetFormatter(&logrus.TextFormatter{})
+	}
+
+	if output == nil {
+		output = os.Stdout
+	}
+	logger.SetOutput(output)
+
+	return &Logger{logger}
+}
+
+// Info logs a message at the info level with structured fields.
+func (l *Logger) Info(msg string, fields ...Field) {
+	l.WithFields(fieldsToLogrus(fields)).Info(msg)
+}
+
+// Error logs a message at the error level with structured fields.
+func (l *Logger) Error(msg string, fields ...Field) {
+	l.WithFields(fieldsToLogrus(fields)).Error(msg)
+}
+
+// fieldsToLogrus converts a slice of our custom Field type to logrus.Fields.
+func fieldsToLogrus(fields []Field) logrus.Fields {
+	f := make(logrus.Fields)
+	for _, field := range fields {
+		f[field.Key] = field.Value
+	}
+	return f
 }
 
 var globalLogger *Logger
@@ -53,7 +75,7 @@ func SetGlobalLogger(logger *Logger) {
 // GetGlobalLogger returns the global logger instance.
 func GetGlobalLogger() *Logger {
 	if globalLogger == nil {
-		// Provide a default logger if none is set
+		// Provide a default logger if none is set.
 		globalLogger = NewLogger("info", "text", nil)
 	}
 	return globalLogger

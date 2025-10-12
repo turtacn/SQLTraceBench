@@ -1,21 +1,13 @@
-logging:
+log:
   level: info
   format: text
 
-benchmark:
-  duration: 5m
-  qps: 100
-  max_concurrency: 10
+database:
+  driver: mysql
+  dsn: "root:root@tcp(127.0.0.1:3306)/test?parseTime=true"
 
-databases:
-  mysql:
-    host: "127.0.0.1"
-    port: 3306
-    user: "root"
-    password: ""
-    max_conns: 50
-  clickhouse:
-    host: "127.0.0.1"
-    port: 9000
-    user: "default"
-    password: ""
+benchmark:
+  executor: simulated
+  qps: 100
+  concurrency: 10
+  slow_threshold: 100ms

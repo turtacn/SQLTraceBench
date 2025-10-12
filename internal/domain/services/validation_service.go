@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -24,11 +25,30 @@ func (s *ValidationService) ValidateAndReport(
 ) (*models.Report, error) {
 
 	// Perform the validation logic.
-	// For this phase, we'll keep it simple: pass if the candidate's QPS is within the threshold.
 	pass := candMetrics.QPS() >= baseMetrics.QPS()*(1-metadata.Threshold)
-	reason := "Validation passed: Candidate QPS is within the acceptable threshold."
-	if !pass {
-		reason = "Validation failed: Candidate QPS is below the acceptable threshold."
+
+	var reason string
+	qpsDiff := candMetrics.QPS() - baseMetrics.QPS()
+	qpsDiffPercent := (qpsDiff / baseMetrics.QPS()) * 100
+
+	if pass {
+		reason = fmt.Sprintf(
+			"Validation passed. Candidate QPS of %.2f is within the %.2f%% threshold of the base QPS of %.2f (difference of %.2f, %.2f%%).",
+			candMetrics.QPS(),
+			metadata.Threshold*100,
+			baseMetrics.QPS(),
+			qpsDiff,
+			qpsDiffPercent,
+		)
+	} else {
+		reason = fmt.Sprintf(
+			"Validation failed. Candidate QPS of %.2f is below the %.2f%% threshold of the base QPS of %.2f (difference of %.2f, %.2f%%).",
+			candMetrics.QPS(),
+			metadata.Threshold*100,
+			baseMetrics.QPS(),
+			qpsDiff,
+			qpsDiffPercent,
+		)
 	}
 
 	// Assemble the report.
@@ -52,7 +72,7 @@ func (s *ValidationService) ValidateAndReport(
 	defer file.Close()
 
 	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ") // Pretty-print the JSON
+	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(report); err != nil {
 		return nil, err
 	}

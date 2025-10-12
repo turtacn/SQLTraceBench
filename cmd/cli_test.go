@@ -27,6 +27,11 @@ func TestCliPipeline(t *testing.T) {
 `
 	ioutil.WriteFile(tracePath, []byte(traceContent), 0644)
 
+	// Setup: Create a dummy config file
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	ioutil.WriteFile(configPath, []byte(""), 0644)
+	cfgFile = configPath
+
 	// Test the convert command
 	tplPath := filepath.Join(tmpDir, "templates.json")
 	rootCmd.SetArgs([]string{"convert", "--trace", tracePath, "--out", tplPath})

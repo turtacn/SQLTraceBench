@@ -25,14 +25,15 @@ func NewExecutionService(rc RateController, slowThreshold time.Duration) *Execut
 
 // RunBench executes a benchmark workload and returns the final performance metrics.
 func (s *ExecutionService) RunBench(ctx context.Context, wl *models.BenchmarkWorkload) (*models.PerformanceMetrics, error) {
-	s.recorder = NewMetricsRecorder(s.slowThreshold)
+	if s.recorder == nil {
+		s.recorder = NewMetricsRecorder(s.slowThreshold)
+	}
 	start := time.Now()
 	var wg sync.WaitGroup
 	queriesCh := make(chan models.QueryWithArgs, len(wl.Queries))
 
 	s.rc.Start(ctx)
 
-	// Use the MaxConcurrency from the rate controller to determine the number of workers.
 	for i := 0; i < s.rc.MaxConcurrency(); i++ {
 		wg.Add(1)
 		go func() {
@@ -64,4 +65,9 @@ func (s *ExecutionService) RunBench(ctx context.Context, wl *models.BenchmarkWor
 
 	totalDuration := time.Since(start)
 	return s.recorder.Finalize(totalDuration), nil
+}
+
+// Reset resets the metrics recorder.
+func (s *ExecutionService) Reset() {
+	s.recorder = nil
 }
