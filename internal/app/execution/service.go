@@ -3,16 +3,29 @@ package execution
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
+	"github.com/turtacn/SQLTraceBench/internal/infrastructure/database"
 )
 
-// Service is the interface for the execution service.
+// Executor is an interface for running a benchmark workload.
+// This allows for different execution strategies (e.g., simulated, real database).
+type Executor interface {
+	RunBench(ctx context.Context, wl *models.BenchmarkWorkload) (*models.PerformanceMetrics, error)
+}
+
+// Service is the application service for the execution phase.
 type Service interface {
-	RunBench(ctx context.Context, workloadPath string, qps, concurrency int, slowThreshold time.Duration) (*models.PerformanceMetrics, error)
+	RunBench(
+		ctx context.Context,
+		workloadPath, executorType, driver, dsn string,
+		qps, concurrency int,
+		slowThreshold time.Duration,
+	) (*models.PerformanceMetrics, error)
 }
 
 // DefaultService is the default implementation of the execution service.
@@ -23,8 +36,14 @@ func NewService() Service {
 	return &DefaultService{}
 }
 
-// RunBench executes a benchmark workload from a file.
-func (s *DefaultService) RunBench(ctx context.Context, workloadPath string, qps, concurrency int, slowThreshold time.Duration) (*models.PerformanceMetrics, error) {
+// RunBench selects an executor based on the provided type and runs the benchmark.
+func (s *DefaultService) RunBench(
+	ctx context.Context,
+	workloadPath, executorType, driver, dsn string,
+	qps, concurrency int,
+	slowThreshold time.Duration,
+) (*models.PerformanceMetrics, error) {
+	// Read the workload file.
 	file, err := os.Open(workloadPath)
 	if err != nil {
 		return nil, err
@@ -36,10 +55,25 @@ func (s *DefaultService) RunBench(ctx context.Context, workloadPath string, qps,
 		return nil, err
 	}
 
+	// Create the rate controller.
 	rc := services.NewTokenBucketRateController(qps, concurrency)
-	execSvc := services.NewExecutionService(rc, slowThreshold)
 
-	metrics, err := execSvc.RunBench(ctx, &wl)
+	// Select the executor.
+	var executor Executor
+	switch executorType {
+	case "simulated":
+		executor = services.NewExecutionService(rc, slowThreshold)
+	case "real":
+		executor, err = database.NewDBExecutionService(driver, dsn, rc)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown executor type: %s", executorType)
+	}
+
+	// Run the benchmark.
+	metrics, err := executor.RunBench(ctx, &wl)
 	if err != nil {
 		return nil, err
 	}

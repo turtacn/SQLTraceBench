@@ -28,7 +28,7 @@ func (s *ExecutionService) RunBench(ctx context.Context, wl *models.BenchmarkWor
 	s.recorder = NewMetricsRecorder(s.slowThreshold)
 	start := time.Now()
 	var wg sync.WaitGroup
-	queriesCh := make(chan string, len(wl.Queries))
+	queriesCh := make(chan models.QueryWithArgs, len(wl.Queries))
 
 	s.rc.Start(ctx)
 

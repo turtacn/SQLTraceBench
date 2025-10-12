@@ -18,6 +18,9 @@ var (
 	}
 	runWorkloadPath string
 	metricsPath     string
+	executorType    string
+	driver          string
+	dsn             string
 	qps             int
 	concurrency     int
 	slowThreshold   time.Duration
@@ -27,6 +30,9 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().StringVarP(&runWorkloadPath, "workload", "w", "workload.json", "Path to the workload file")
 	runCmd.Flags().StringVarP(&metricsPath, "out", "o", "metrics.json", "Path to the output metrics file")
+	runCmd.Flags().StringVar(&executorType, "executor", "simulated", "Executor to use (simulated or real)")
+	runCmd.Flags().StringVar(&driver, "driver", "mysql", "Database driver to use for real execution")
+	runCmd.Flags().StringVar(&dsn, "dsn", "", "Data Source Name for real execution")
 	runCmd.Flags().IntVar(&qps, "qps", 100, "Target queries per second")
 	runCmd.Flags().IntVar(&concurrency, "concurrency", 10, "Maximum concurrent queries")
 	runCmd.Flags().DurationVar(&slowThreshold, "slow-threshold", 100*time.Millisecond, "Slow query threshold")
@@ -34,7 +40,16 @@ func init() {
 
 func runRun(cmd *cobra.Command, args []string) error {
 	root := app.NewRoot()
-	metrics, err := root.Execution.RunBench(context.Background(), runWorkloadPath, qps, concurrency, slowThreshold)
+	metrics, err := root.Execution.RunBench(
+		context.Background(),
+		runWorkloadPath,
+		executorType,
+		driver,
+		dsn,
+		qps,
+		concurrency,
+		slowThreshold,
+	)
 	if err != nil {
 		return err
 	}

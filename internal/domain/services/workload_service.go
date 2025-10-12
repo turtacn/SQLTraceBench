@@ -5,7 +5,6 @@ import (
 )
 
 // WorkloadService is responsible for generating a benchmark workload.
-// It uses a Sampler to generate realistic parameter values based on a ParameterModel.
 type WorkloadService struct {
 	sampler Sampler
 }
@@ -16,8 +15,6 @@ func NewWorkloadService(sampler Sampler) *WorkloadService {
 }
 
 // GenerateWorkload creates a BenchmarkWorkload from SQL templates and a parameter model.
-// It generates `n` queries for each template, using the sampler to select parameter values
-// based on their observed distribution.
 func (s *WorkloadService) GenerateWorkload(
 	templates []models.SQLTemplate,
 	pm *models.ParameterModel,
@@ -28,8 +25,6 @@ func (s *WorkloadService) GenerateWorkload(
 	for _, t := range templates {
 		templateParams, ok := pm.TemplateParameters[t.GroupKey]
 		if !ok {
-			// If there's no model for this template, we can't generate queries.
-			// In a real application, we might want to handle this differently (e.g., use default values).
 			continue
 		}
 
@@ -38,29 +33,24 @@ func (s *WorkloadService) GenerateWorkload(
 			for _, paramName := range t.Parameters {
 				dist, ok := templateParams[paramName]
 				if !ok {
-					// No distribution found for this parameter.
-					// We could use a default value or return an error.
-					params[paramName] = "default" // Fallback
+					params[paramName] = "default"
 					continue
 				}
 
-				// Sample a value from the distribution.
 				sampledValue, err := s.sampler.Sample(dist)
 				if err != nil {
-					// Handle the error, e.g., by logging it and using a default.
 					params[paramName] = "default"
 					continue
 				}
 				params[paramName] = sampledValue
 			}
 
-			// Generate the final query with the sampled parameters.
-			query, err := t.GenerateQuery(params)
+			// Generate the QueryWithArgs struct.
+			queryWithArgs, err := t.GenerateQuery(params)
 			if err != nil {
-				// Log or handle the error.
 				continue
 			}
-			wl.Queries = append(wl.Queries, query)
+			wl.Queries = append(wl.Queries, queryWithArgs)
 		}
 	}
 

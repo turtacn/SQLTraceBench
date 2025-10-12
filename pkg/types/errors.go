@@ -8,10 +8,15 @@ type ErrorCode string
 
 // Defines the set of standard error codes.
 const (
-	ErrInvalidInput ErrorCode = "invalid_input"
-	ErrParseFailed  ErrorCode = "parse_failed"
-	ErrNotFound     ErrorCode = "not_found"
-	ErrInternal     ErrorCode = "internal"
+	ErrInvalidInput         ErrorCode = "invalid_input"
+	ErrParseFailed          ErrorCode = "parse_failed"
+	ErrNotFound             ErrorCode = "not_found"
+	ErrDatabaseConnection   ErrorCode = "database_connection"
+	ErrPluginNotFound       ErrorCode = "plugin_not_found"
+	ErrValidationFailed     ErrorCode = "validation_failed"
+	ErrExecutionFailed      ErrorCode = "execution_failed"
+	ErrReportGeneration     ErrorCode = "report_generation"
+	ErrInternal             ErrorCode = "internal"
 )
 
 // SQLTraceBenchError is a custom error type for the application.
