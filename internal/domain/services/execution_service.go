@@ -1,45 +1,67 @@
-// Package services contains the interfaces for the application's core services.
 package services
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 )
 
 // ExecutionService is responsible for running a benchmark workload and collecting performance metrics.
-// This is a simulated implementation that uses `time.Sleep` to mimic database latency.
-type ExecutionService struct{}
-
-// NewExecutionService creates a new ExecutionService.
-func NewExecutionService() *ExecutionService {
-	return &ExecutionService{}
+type ExecutionService struct {
+	rc            RateController
+	recorder      *MetricsRecorder
+	slowThreshold time.Duration
 }
 
-// RunBench executes a benchmark workload and returns the performance metrics.
-// It iterates through the queries in the workload, simulating execution with a short sleep.
-// The context can be used to cancel the benchmark run prematurely.
-func (s *ExecutionService) RunBench(ctx context.Context, wl models.BenchmarkWorkload) (*models.PerformanceMetrics, error) {
+// NewExecutionService creates a new ExecutionService.
+func NewExecutionService(rc RateController, slowThreshold time.Duration) *ExecutionService {
+	return &ExecutionService{
+		rc:            rc,
+		slowThreshold: slowThreshold,
+	}
+}
+
+// RunBench executes a benchmark workload and returns the final performance metrics.
+func (s *ExecutionService) RunBench(ctx context.Context, wl *models.BenchmarkWorkload) (*models.PerformanceMetrics, error) {
+	s.recorder = NewMetricsRecorder(s.slowThreshold)
 	start := time.Now()
+	var wg sync.WaitGroup
+	queriesCh := make(chan string, len(wl.Queries))
+
+	s.rc.Start(ctx)
+
+	// Use the MaxConcurrency from the rate controller to determine the number of workers.
+	for i := 0; i < s.rc.MaxConcurrency(); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for query := range queriesCh {
+				if err := s.rc.Acquire(ctx); err != nil {
+					return
+				}
+
+				execStart := time.Now()
+				_ = query
+				time.Sleep(1 * time.Millisecond)
+				latency := time.Since(execStart)
+				s.recorder.Record(latency, nil)
+			}
+		}()
+	}
 
 	for _, query := range wl.Queries {
 		select {
+		case queriesCh <- query:
 		case <-ctx.Done():
-			// The context was canceled, so stop the benchmark.
-			return nil, ctx.Err()
-		default:
-			// Simulate the execution of the query.
-			_ = query // a read to avoid "unused variable" compiler error
-			time.Sleep(1 * time.Millisecond)
+			break
 		}
 	}
+	close(queriesCh)
 
-	duration := time.Since(start)
-	metrics := &models.PerformanceMetrics{
-		QueriesExecuted: int64(len(wl.Queries)),
-		Duration:        duration,
-	}
+	wg.Wait()
 
-	return metrics, nil
+	totalDuration := time.Since(start)
+	return s.recorder.Finalize(totalDuration), nil
 }

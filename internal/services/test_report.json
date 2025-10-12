@@ -1,0 +1,32 @@
+{
+  "version": "report.v1",
+  "timestamp": "2025-10-12T00:29:22.398945179Z",
+  "metadata": {
+    "base_target": "",
+    "candidate_target": "",
+    "threshold": 0.05,
+    "template_summary": null
+  },
+  "result": {
+    "base_metrics": {
+      "queries_executed": 2,
+      "Errors": 0,
+      "duration": 1307897,
+      "p50": 1143791,
+      "p90": 1143791,
+      "p99": 1143791,
+      "slow_queries": 0
+    },
+    "candidate_metrics": {
+      "queries_executed": 2,
+      "Errors": 0,
+      "duration": 1234228,
+      "p50": 1149242,
+      "p90": 1149242,
+      "p99": 1149242,
+      "slow_queries": 0
+    },
+    "pass": true,
+    "reason": "Validation passed: Candidate QPS is within the acceptable threshold."
+  }
+}

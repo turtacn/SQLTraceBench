@@ -1,11 +1,14 @@
-// Package services contains the interfaces for the application's core services.
 package services
 
 import (
+	"encoding/json"
+	"os"
+	"time"
+
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 )
 
-// ValidationService is responsible for comparing the performance metrics of two benchmark runs.
+// ValidationService is responsible for comparing benchmark runs and generating a structured report.
 type ValidationService struct{}
 
 // NewValidationService creates a new ValidationService.
@@ -13,18 +16,46 @@ func NewValidationService() *ValidationService {
 	return &ValidationService{}
 }
 
-// Validate compares the performance metrics of a base and candidate benchmark run.
-// It returns a ValidationReport indicating whether the candidate's performance is within the acceptable threshold.
-func (s *ValidationService) Validate(base, cand *models.PerformanceMetrics, th float64) *models.ValidationReport {
-	vr := &models.ValidationReport{
-		BaseQPS:      base.QPS(),
-		CandidateQPS: cand.QPS(),
-		DiffQPS:      cand.QPS() - base.QPS(),
-		Threshold:    th,
+// ValidateAndReport compares the performance of a base and candidate run, then generates and saves a JSON report.
+func (s *ValidationService) ValidateAndReport(
+	baseMetrics, candMetrics *models.PerformanceMetrics,
+	metadata *models.ReportMetadata,
+	outputPath string,
+) (*models.Report, error) {
+
+	// Perform the validation logic.
+	// For this phase, we'll keep it simple: pass if the candidate's QPS is within the threshold.
+	pass := candMetrics.QPS() >= baseMetrics.QPS()*(1-metadata.Threshold)
+	reason := "Validation passed: Candidate QPS is within the acceptable threshold."
+	if !pass {
+		reason = "Validation failed: Candidate QPS is below the acceptable threshold."
 	}
 
-	// The candidate passes if its QPS is greater than or equal to the base QPS minus the threshold.
-	vr.Pass = vr.CandidateQPS >= vr.BaseQPS*(1-th)
+	// Assemble the report.
+	report := &models.Report{
+		Version:   "report.v1",
+		Timestamp: time.Now(),
+		Metadata:  metadata,
+		Result: &models.ValidationResult{
+			BaseMetrics:      baseMetrics,
+			CandidateMetrics: candMetrics,
+			Pass:             pass,
+			Reason:           reason,
+		},
+	}
 
-	return vr
+	// Save the report to a file.
+	file, err := os.Create(outputPath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ") // Pretty-print the JSON
+	if err := encoder.Encode(report); err != nil {
+		return nil, err
+	}
+
+	return report, nil
 }

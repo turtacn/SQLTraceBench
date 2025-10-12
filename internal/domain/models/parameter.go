@@ -1,60 +1,49 @@
 package models
 
-import (
-	"math/rand"
-	"time"
-
-	"github.com/turtacn/SQLTraceBench/pkg/types"
-)
-
+// ParameterModel holds the statistical model of parameters for a set of SQL templates.
+// It maps each template (by its GroupKey) to a model of its parameters.
 type ParameterModel struct {
-	Templates   map[string]types.ParameterType `json:"templates"`
-	Parameters  map[string]ParamStats          `json:"parameters"`
-	GlobalStats GlobalStatistics               `json:"global_stats"`
-	GeneratedAt time.Time                      `json:"generated_at"`
+	// TemplateParameters maps a template's GroupKey to a map of its parameters.
+	// Each parameter is then mapped to its value distribution.
+	TemplateParameters map[string]map[string]*ValueDistribution
 }
 
-type ParamStats struct {
-	Type           types.ParameterType
-	Distribution   types.DistributionType
-	ValueSet       []interface{}
-	Frequencies    []int
-	MinVal, MaxVal float64
-}
-
-type Distribution interface {
-	Sample() interface{}
-	GetMean() float64
-}
-
-type ZipfianDistribution struct {
-	Alpha float64
-	N     int
-	r     *rand.Rand
-}
-
-func (z *ZipfianDistribution) Sample() interface{} {
-	// Very basic zipfian
-	return 1 + z.r.Intn(z.N)
-}
-
-func (z *ZipfianDistribution) GetMean() float64 {
-	return float64(z.N) / 2
-}
-
-type GlobalStatistics struct {
-	DataTimestamp     time.Time
-	TotalQueries      int64
-	UniqueParameters  int
-	ParameterCoverage float64
-	TimeRange         struct {
-		Start, End time.Time
+// NewParameterModel creates an empty parameter model.
+func NewParameterModel() *ParameterModel {
+	return &ParameterModel{
+		TemplateParameters: make(map[string]map[string]*ValueDistribution),
 	}
 }
 
-func (pm *ParameterModel) UpdateStats() {
-	// Incrementally update
-	pm.GlobalStats.DataTimestamp = time.Now()
+// ValueDistribution holds the observed values and their frequencies for a single parameter.
+type ValueDistribution struct {
+	// Values is a slice of unique parameter values.
+	Values []interface{}
+	// Frequencies is a slice of corresponding frequencies for each value.
+	Frequencies []int
+	// Total is the total number of observations for this parameter.
+	Total int
 }
 
-//Personal.AI order the ending
+// NewValueDistribution creates an empty value distribution.
+func NewValueDistribution() *ValueDistribution {
+	return &ValueDistribution{
+		Values:      make([]interface{}, 0),
+		Frequencies: make([]int, 0),
+	}
+}
+
+// AddObservation records an observation of a parameter value.
+// If the value has been seen before, its frequency is incremented.
+// Otherwise, the new value is added with a frequency of 1.
+func (vd *ValueDistribution) AddObservation(value interface{}) {
+	vd.Total++
+	for i, v := range vd.Values {
+		if v == value {
+			vd.Frequencies[i]++
+			return
+		}
+	}
+	vd.Values = append(vd.Values, value)
+	vd.Frequencies = append(vd.Frequencies, 1)
+}

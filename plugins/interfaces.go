@@ -1,14 +1,11 @@
-// Package plugins defines the interface for extending the functionality of SQLTraceBench.
 package plugins
 
+import "fmt"
+
 // Plugin is the interface that all plugins must implement.
-// It provides a way to add support for new database dialects.
 type Plugin interface {
-	// Name returns the name of the plugin (e.g., "clickhouse").
 	Name() string
-	// Version returns the version of the plugin.
 	Version() string
-	// TranslateQuery translates a SQL query from the source dialect to the target dialect.
 	TranslateQuery(sql string) (string, error)
 }
 
@@ -31,4 +28,15 @@ func (r *Registry) Register(p Plugin) {
 func (r *Registry) Get(name string) (Plugin, bool) {
 	p, ok := r.plugins[name]
 	return p, ok
+}
+
+// GlobalRegistry is the global plugin registry.
+var GlobalRegistry = NewRegistry()
+
+// GetPlugin retrieves a plugin from the global registry by name.
+func GetPlugin(name string) (Plugin, error) {
+	if p, ok := GlobalRegistry.Get(name); ok {
+		return p, nil
+	}
+	return nil, fmt.Errorf("plugin not found: %s", name)
 }

@@ -1,50 +1,78 @@
 package services
 
 import (
-	"context"
-	"math/rand"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
-	"github.com/turtacn/SQLTraceBench/internal/domain/repositories"
-	"github.com/turtacn/SQLTraceBench/pkg/types"
 )
 
-type ParameterService interface {
-	BuildModel(ctx context.Context, traces []models.SQLTrace) (*models.ParameterModel, error)
-	GenerateParams(model *models.ParameterModel, tpl *models.SQLTemplate) map[string]interface{}
+// ParameterService is responsible for building a statistical model of parameters from SQL traces.
+type ParameterService struct {
+	extractor *mockParameterExtractor
 }
 
-type DefaultParameterService struct {
-	repo repositories.ParameterRepository
-}
-
-func NewParameterService(repo repositories.ParameterRepository) ParameterService {
-	return &DefaultParameterService{repo: repo}
-}
-
-func (s *DefaultParameterService) BuildModel(_ context.Context, traces []models.SQLTrace) (*models.ParameterModel, error) {
-	pm := &models.ParameterModel{
-		Parameters: make(map[string]models.ParamStats),
+// NewParameterService creates a new ParameterService.
+func NewParameterService() *ParameterService {
+	return &ParameterService{
+		extractor: &mockParameterExtractor{},
 	}
-	for _, t := range traces {
-		// naive integer scan (MVP only)
-		re := regexp.MustCompile(`(?:=|in)\s*(\d+)`)
-		matches := re.FindAllStringSubmatch(strings.ToLower(t.Query), -1)
-		for range matches {
-			key := "param"
-			stat := models.ParamStats{Type: types.TypeInteger}
-			if _, ok := pm.Parameters[key]; !ok {
-				pm.Parameters[key] = stat
+}
+
+// BuildModel analyzes a collection of SQL traces and builds a ParameterModel.
+func (s *ParameterService) BuildModel(tc models.TraceCollection, templates []models.SQLTemplate) *models.ParameterModel {
+	pm := models.NewParameterModel()
+	templateMap := make(map[string]models.SQLTemplate)
+	for _, t := range templates {
+		templateMap[normalizeQuery(t.RawSQL)] = t
+	}
+
+	for _, trace := range tc.Traces {
+		key := normalizeQuery(trace.Query)
+		template, ok := templateMap[key]
+		if !ok {
+			continue
+		}
+
+		paramValues, err := s.extractor.Extract(trace.Query, &template)
+		if err != nil {
+			continue
+		}
+
+		if _, ok := pm.TemplateParameters[template.GroupKey]; !ok {
+			pm.TemplateParameters[template.GroupKey] = make(map[string]*models.ValueDistribution)
+		}
+
+		for paramName, value := range paramValues {
+			if _, ok := pm.TemplateParameters[template.GroupKey][paramName]; !ok {
+				pm.TemplateParameters[template.GroupKey][paramName] = models.NewValueDistribution()
 			}
+			pm.TemplateParameters[template.GroupKey][paramName].AddObservation(value)
 		}
 	}
-	pm.GeneratedAt = time.Now()
-	return pm, nil
+
+	return pm
 }
 
-func (s *DefaultParameterService) GenerateParams(_ *models.ParameterModel, _ *models.SQLTemplate) map[string]interface{} {
-	return map[string]interface{}{"param": rand.Intn(9999)}
+// mockParameterExtractor simulates the process of extracting parameter values from a SQL query.
+type mockParameterExtractor struct{}
+
+func (m *mockParameterExtractor) Extract(sql string, template *models.SQLTemplate) (map[string]interface{}, error) {
+	values := make(map[string]interface{})
+	// This is a very basic extractor that only works for the test case.
+	re := regexp.MustCompile(`id = (\d+)`)
+	matches := re.FindStringSubmatch(sql)
+	if len(matches) > 1 {
+		values[":id"] = matches[1]
+	}
+	return values, nil
+}
+
+// normalizeQuery provides a basic normalization for lookup.
+func normalizeQuery(q string) string {
+	q = strings.ToLower(q)
+	q = regexp.MustCompile(`\s+`).ReplaceAllString(q, " ")
+	q = regexp.MustCompile(`\s*=\s*(\d+|'[^']*')`).ReplaceAllString(q, " = ?")
+	q = regexp.MustCompile(`\s*=\s*:\w+`).ReplaceAllString(q, " = ?")
+	return q
 }

@@ -11,7 +11,7 @@ import (
 
 // Service is the interface for the conversion service.
 type Service interface {
-	ConvertFromFile(ctx context.Context, tracePath, outYaml string) error
+	ConvertFromFile(ctx context.Context, tracePath string) ([]models.SQLTemplate, error)
 }
 
 // DefaultService is the default implementation of the conversion service.
@@ -24,11 +24,11 @@ func NewService() Service {
 	return &DefaultService{templateSvc: services.NewTemplateService()}
 }
 
-// ConvertFromFile reads SQL traces from a file, converts them to templates, and saves them to a YAML file.
-func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath, outYaml string) error {
+// ConvertFromFile reads SQL traces from a file and converts them to templates.
+func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath string) ([]models.SQLTemplate, error) {
 	file, err := os.Open(tracePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
 
@@ -37,7 +37,7 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath, outYaml
 	for dec.More() {
 		var t models.SQLTrace
 		if err := dec.Decode(&t); err != nil {
-			return err
+			return nil, err
 		}
 		traces = append(traces, t)
 	}
@@ -45,11 +45,5 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath, outYaml
 	tc := models.TraceCollection{Traces: traces}
 	tpls := s.templateSvc.ExtractTemplates(tc)
 
-	f, err := os.Create(outYaml)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return json.NewEncoder(f).Encode(map[string]interface{}{"templates": tpls})
+	return tpls, nil
 }
