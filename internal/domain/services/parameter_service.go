@@ -22,6 +22,27 @@ func NewParameterService() *ParameterService {
 // BuildModel analyzes a collection of SQL traces and builds a ParameterModel.
 func (s *ParameterService) BuildModel(tc models.TraceCollection, templates []models.SQLTemplate) *models.ParameterModel {
 	pm := models.NewParameterModel()
+
+	// If there are no traces, create a default model from the templates.
+	if len(tc.Traces) == 0 {
+		for _, t := range templates {
+			t.ExtractParameters()
+			if len(t.Parameters) > 0 {
+				if _, ok := pm.TemplateParameters[t.GroupKey]; !ok {
+					pm.TemplateParameters[t.GroupKey] = make(map[string]*models.ValueDistribution)
+				}
+				for _, pName := range t.Parameters {
+					// Create a default distribution for each parameter.
+					// This is a simplification for Phase 1.
+					dist := models.NewValueDistribution()
+					dist.AddObservation("1") // Add a default observation.
+					pm.TemplateParameters[t.GroupKey][pName] = dist
+				}
+			}
+		}
+		return pm
+	}
+
 	templateMap := make(map[string]models.SQLTemplate)
 	for _, t := range templates {
 		templateMap[normalizeQuery(t.RawSQL)] = t

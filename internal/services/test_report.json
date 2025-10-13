@@ -1,6 +1,6 @@
 {
   "version": "report.v1",
-  "timestamp": "2025-10-12T09:13:39.831737533Z",
+  "timestamp": "2025-10-13T02:10:26.580435456Z",
   "metadata": {
     "base_target": "",
     "candidate_target": "",
@@ -11,22 +11,22 @@
     "base_metrics": {
       "queries_executed": 2,
       "Errors": 0,
-      "duration": 1558942,
-      "p50": 1234915,
-      "p90": 1234915,
-      "p99": 1234915,
+      "duration": 1231702,
+      "p50": 1155519,
+      "p90": 1155519,
+      "p99": 1155519,
       "slow_queries": 0
     },
     "candidate_metrics": {
       "queries_executed": 2,
       "Errors": 0,
-      "duration": 1386838,
-      "p50": 1284402,
-      "p90": 1284402,
-      "p99": 1284402,
+      "duration": 1219432,
+      "p50": 1191229,
+      "p90": 1191229,
+      "p99": 1191229,
       "slow_queries": 0
     },
     "pass": true,
-    "reason": "Validation passed. Candidate QPS of 1442.13 is within the 5.00% threshold of the base QPS of 1282.92 (difference of 159.21, 12.41%)."
+    "reason": "Validation passed. Candidate QPS of 1640.11 is within the 5.00% threshold of the base QPS of 1623.77 (difference of 16.34, 1.01%)."
   }
 }
