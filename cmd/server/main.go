@@ -5,7 +5,7 @@ import (
 	"github.com/turtacn/SQLTraceBench/internal/app/api"
 )
 
-func main() {
+func setupServer() *gin.Engine {
 	r := gin.Default()
 
 	// Create the job store, metrics exporter, and worker.
@@ -19,5 +19,10 @@ func main() {
 	// Start the worker.
 	worker.Start()
 
+	return r
+}
+
+func main() {
+	r := setupServer()
 	r.Run(":8080")
 }
