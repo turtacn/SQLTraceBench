@@ -42,12 +42,12 @@ func TestPostgresPlugin(t *testing.T) {
 	loader := database.NewPostgresSchemaLoader(db)
 	loadSchema := &models.DatabaseSchema{
 		Name: "test",
-		Tables: map[string]*models.TableSchema{
-			"load_test_table": {
+		Tables: []*models.TableSchema{
+			{
 				Name: "load_test_table",
 				Columns: []*models.ColumnSchema{
-					{Name: "id", Type: "integer"},
-					{Name: "value", Type: "text"},
+					{Name: "id", DataType: "integer"},
+					{Name: "value", DataType: "text"},
 				},
 				PK: []string{"id"},
 			},

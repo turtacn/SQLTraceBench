@@ -28,7 +28,7 @@ func (e *MySqlSchemaExtractor) ExtractSchema(ctx context.Context) (*models.Datab
 
 	schema := &models.DatabaseSchema{
 		Name:   dbName,
-		Tables: make(map[string]*models.TableSchema),
+		Tables: make([]*models.TableSchema, 0),
 	}
 
 	// Get the tables.
@@ -38,21 +38,22 @@ func (e *MySqlSchemaExtractor) ExtractSchema(ctx context.Context) (*models.Datab
 	}
 	defer rows.Close()
 
+	var tables []*models.TableSchema
 	for rows.Next() {
 		var tableName string
 		if err := rows.Scan(&tableName); err != nil {
 			return nil, types.WrapError(types.ErrDatabaseConnection, "failed to scan table name", err)
 		}
-		schema.Tables[tableName] = &models.TableSchema{Name: tableName}
+		tables = append(tables, &models.TableSchema{Name: tableName})
 	}
 
 	// Get the columns for each table.
-	for tableName, table := range schema.Tables {
+	for _, table := range tables {
 		colRows, err := e.db.QueryContext(ctx, `
 			SELECT column_name, column_type, is_nullable, column_default
 			FROM information_schema.columns
 			WHERE table_schema = ? AND table_name = ?
-		`, dbName, tableName)
+		`, dbName, table.Name)
 		if err != nil {
 			return nil, types.WrapError(types.ErrDatabaseConnection, "failed to get columns", err)
 		}
@@ -62,7 +63,7 @@ func (e *MySqlSchemaExtractor) ExtractSchema(ctx context.Context) (*models.Datab
 			var col models.ColumnSchema
 			var isNullable string
 			var colDefault sql.NullString
-			if err := colRows.Scan(&col.Name, &col.Type, &isNullable, &colDefault); err != nil {
+			if err := colRows.Scan(&col.Name, &col.DataType, &isNullable, &colDefault); err != nil {
 				return nil, types.WrapError(types.ErrDatabaseConnection, "failed to scan column", err)
 			}
 			col.IsNullable = isNullable == "YES"
@@ -70,6 +71,7 @@ func (e *MySqlSchemaExtractor) ExtractSchema(ctx context.Context) (*models.Datab
 			table.Columns = append(table.Columns, &col)
 		}
 	}
+	schema.Tables = tables
 
 	return schema, nil
 }

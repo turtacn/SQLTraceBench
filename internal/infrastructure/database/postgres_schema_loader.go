@@ -40,7 +40,7 @@ func (l *PostgresSchemaLoader) generateCreateTableDDL(table *models.TableSchema)
 	sb.WriteString(fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (\n", table.Name))
 
 	for i, col := range table.Columns {
-		sb.WriteString(fmt.Sprintf("  \"%s\" %s", col.Name, col.Type))
+		sb.WriteString(fmt.Sprintf("  \"%s\" %s", col.Name, col.DataType))
 		if !col.IsNullable {
 			sb.WriteString(" NOT NULL")
 		}

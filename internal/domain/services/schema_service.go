@@ -37,30 +37,32 @@ func (s *SchemaService) ConvertTo(sourceSchema *models.DatabaseSchema, targetDia
 
 	convertedSchema := &models.DatabaseSchema{
 		Name:   sourceSchema.Name,
-		Tables: make(map[string]*models.TableSchema),
+		Tables: make([]*models.TableSchema, 0, len(sourceSchema.Tables)),
 	}
 
-	for tableName, table := range sourceSchema.Tables {
+	for _, table := range sourceSchema.Tables {
 		convertedTable := &models.TableSchema{
 			Name:    table.Name,
 			Columns: make([]*models.ColumnSchema, len(table.Columns)),
 			PK:      table.PK,
 			Indexes: table.Indexes,
+			Engine:  table.Engine,
 		}
 
 		for i, col := range table.Columns {
-			convertedType, err := mapper(col.Type)
+			convertedType, err := mapper(col.DataType) // Use DataType
 			if err != nil {
-				return nil, fmt.Errorf("failed to convert type for column %s in table %s: %w", col.Name, tableName, err)
+				return nil, fmt.Errorf("failed to convert type for column %s in table %s: %w", col.Name, table.Name, err)
 			}
 			convertedTable.Columns[i] = &models.ColumnSchema{
-				Name:       col.Name,
-				Type:       convertedType,
-				IsNullable: col.IsNullable,
-				Default:    col.Default,
+				Name:         col.Name,
+				DataType:     convertedType, // Use DataType
+				IsNullable:   col.IsNullable,
+				IsPrimaryKey: col.IsPrimaryKey,
+				Default:      col.Default,
 			}
 		}
-		convertedSchema.Tables[tableName] = convertedTable
+		convertedSchema.Tables = append(convertedSchema.Tables, convertedTable)
 	}
 
 	return convertedSchema, nil
