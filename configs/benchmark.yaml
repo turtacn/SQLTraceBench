@@ -1,0 +1,29 @@
+benchmark:
+  models:
+    - name: "markov_v1"
+      type: "markov"
+      config_path: "configs/models/markov.yaml"
+    - name: "lstm_v2"
+      type: "lstm"
+      config_path: "configs/models/lstm.yaml"
+
+  test_scenarios:
+    - name: "light_load"
+      trace_count: 1000
+      concurrency: 10
+    - name: "heavy_load"
+      trace_count: 100000
+      concurrency: 100
+
+  metrics:
+    - generation_throughput  # traces/sec
+    - avg_latency            # ms
+    - p95_latency
+    - p99_latency
+    - memory_usage           # MB
+    - cpu_usage              # %
+
+  output:
+    report_dir: "./benchmark_reports"
+    export_prometheus: true
+    prometheus_port: 9091

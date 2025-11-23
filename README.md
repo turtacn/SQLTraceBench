@@ -170,6 +170,21 @@ sql_trace_bench validate \
 - `reports/validation_report.html`: Interactive HTML report with distribution charts.
 - `http://localhost:9090/metrics`: Prometheus metrics for monitoring pass rates.
 
+### Benchmarking and Model Comparison (Phase 4)
+
+```bash
+# Run performance benchmarks with multiple models
+sql_trace_bench benchmark run \
+  --config configs/benchmark.yaml \
+  --output ./benchmark_reports \
+  --prometheus
+```
+
+**Features:**
+- **Multi-Model Comparison**: Compare throughput and latency of Markov, LSTM, and other models.
+- **Resource Monitoring**: Track CPU and Memory usage during generation.
+- **Prometheus Integration**: Real-time metrics visualization in Grafana.
+
 ### Example Input/Output
 
 **Input Schema (TPC-C Example):**

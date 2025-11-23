@@ -1,0 +1,51 @@
+{
+  "dashboard": {
+    "title": "SQL Trace Bench - Benchmark Dashboard",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Generation Throughput",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "benchmark_generation_throughput",
+            "legendFormat": "{{model}}"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "P99 Latency",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, benchmark_generation_duration_seconds_bucket)",
+            "legendFormat": "{{model}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Validation Score",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "benchmark_validation_score",
+            "legendFormat": "{{model}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Model Comparison (Throughput)",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "benchmark_generation_throughput",
+            "legendFormat": "{{model}}"
+          }
+        ]
+      }
+    ]
+  }
+}
