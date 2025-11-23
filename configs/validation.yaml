@@ -1,0 +1,6 @@
+validation:
+  ks_test_threshold: 0.05
+  chi_square_threshold: 0.01
+  temporal_tolerance: 0.1  # 10% temporal deviation tolerance
+  report_output_dir: "./reports"
+  prometheus_port: 9090

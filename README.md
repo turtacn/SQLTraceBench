@@ -155,6 +155,21 @@ sql_trace_bench generate \
   --output synthetic_load.jsonl
 ```
 
+### Validation and Reporting (Phase 3)
+
+```bash
+# Validate synthetic workload against original traces
+sql_trace_bench validate \
+    --original production.log \
+    --generated synthetic_load.jsonl \
+    --report-dir ./reports \
+    --prometheus-port 9090
+```
+
+**Reports Generated:**
+- `reports/validation_report.html`: Interactive HTML report with distribution charts.
+- `http://localhost:9090/metrics`: Prometheus metrics for monitoring pass rates.
+
 ### Example Input/Output
 
 **Input Schema (TPC-C Example):**

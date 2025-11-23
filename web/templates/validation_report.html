@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Validation Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f9f9f9; }
+        h1, h2 { color: #333; }
+        .summary { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .score { font-size: 48px; font-weight: bold; color: {{if ge .OverallScore 80.0}}green{{else}}red{{end}}; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #4CAF50; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .chart-container { width: 100%; max-width: 800px; margin: 20px auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <h1>SQL Trace Bench - Validation Report</h1>
+    <div class="summary">
+        <h2>Summary</h2>
+        <div class="score">{{printf "%.1f%%" .OverallScore}}</div>
+        <p>{{.Summary}}</p>
+        <p>Generated at: {{.GeneratedAt.Format "2006-01-02 15:04:05"}}</p>
+    </div>
+
+    <h2>Distribution Tests</h2>
+    <div class="chart-container">
+        <canvas id="distributionChart"></canvas>
+    </div>
+    <table>
+        <tr><th>Parameter</th><th>Test Name</th><th>P-Value</th><th>Status</th></tr>
+        {{range .DistributionTests}}
+        <tr>
+            <td>{{index .Details "parameter"}}</td>
+            <td>{{.TestName}}</td>
+            <td>{{printf "%.4f" .PValue}}</td>
+            <td>{{if .Passed}}✅ PASS{{else}}❌ FAIL{{end}}</td>
+        </tr>
+        {{end}}
+    </table>
+
+    <h2>Temporal Tests</h2>
+    <div class="chart-container">
+        <canvas id="temporalChart"></canvas>
+    </div>
+    <table>
+         <tr><th>Test Name</th><th>P-Value</th><th>Status</th></tr>
+         {{range .TemporalTests}}
+         <tr>
+             <td>{{.TestName}}</td>
+             <td>{{printf "%.4f" .PValue}}</td>
+             <td>{{if .Passed}}✅ PASS{{else}}❌ FAIL{{end}}</td>
+         </tr>
+         {{end}}
+    </table>
+
+     <h2>Query Type Tests</h2>
+     <table>
+          <tr><th>Test Name</th><th>P-Value</th><th>Status</th></tr>
+          {{range .QueryTypeTests}}
+          <tr>
+              <td>{{.TestName}}</td>
+              <td>{{printf "%.4f" .PValue}}</td>
+              <td>{{if .Passed}}✅ PASS{{else}}❌ FAIL{{end}}</td>
+          </tr>
+          {{end}}
+     </table>
+
+    <script>
+        const ctx = document.getElementById('distributionChart');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [{{range .DistributionTests}}'{{index .Details "parameter"}}',{{end}}],
+                datasets: [{
+                    label: 'P-Value (KS Test)',
+                    data: [{{range .DistributionTests}}{{.PValue}},{{end}}],
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 1.0,
+                        title: {
+                            display: true,
+                            text: 'P-Value'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Distribution Test Results (Higher is Better)'
+                    }
+                }
+            }
+        });
+
+        // Temporal Heatmap (Line Chart of Normalized Frequencies)
+        {{if .TemporalTests}}
+        {{with index .TemporalTests 0}}
+        const ctxTemp = document.getElementById('temporalChart');
+        new Chart(ctxTemp, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 100}, (_, i) => i + 1), // 1 to 100 bins
+                datasets: [
+                    {
+                        label: 'Original Trace',
+                        data: [{{range $i, $v := .Details.bins_orig}}{{$v}},{{end}}],
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Generated Trace',
+                        data: [{{range $i, $v := .Details.bins_gen}}{{$v}},{{end}}],
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        fill: true,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Temporal Load Distribution (Normalized)'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Frequency'
+                        }
+                    },
+                    x: {
+                         title: {
+                            display: true,
+                            text: 'Time Bin (1-100)'
+                        }
+                    }
+                }
+            }
+        });
+        {{end}}
+        {{end}}
+    </script>
+</body>
+</html>
