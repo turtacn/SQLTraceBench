@@ -1,17 +1,43 @@
 package starrocks
 
-import "github.com/turtacn/SQLTraceBench/plugins"
+import (
+	"github.com/turtacn/SQLTraceBench/internal/domain/models"
+)
 
 // PluginName exported
 const PluginName = "starrocks"
+const PluginVersion = "1.0.0"
 
-type plugin struct{}
+// StarRocksPlugin implements the DatabasePlugin interface.
+type StarRocksPlugin struct {
+	converter  *StarRocksConverter
+	translator *StarRocksTranslator
+}
 
-func New() plugins.Plugin { return &plugin{} }
+// New creates a new instance of StarRocksPlugin.
+func New() *StarRocksPlugin {
+	return &StarRocksPlugin{
+		converter:  &StarRocksConverter{},
+		translator: &StarRocksTranslator{},
+	}
+}
 
-func (p *plugin) Name() string    { return PluginName }
-func (p *plugin) Version() string { return "1.0-mvp" }
-func (p *plugin) TranslateQuery(sql string) (string, error) {
-	// Placeholder implementation
-	return sql, nil
+// Name returns the name of the plugin.
+func (p *StarRocksPlugin) Name() string {
+	return PluginName
+}
+
+// Version returns the version of the plugin.
+func (p *StarRocksPlugin) Version() string {
+	return PluginVersion
+}
+
+// TranslateQuery translates a SQL query to StarRocks dialect.
+func (p *StarRocksPlugin) TranslateQuery(sql string) (string, error) {
+	return p.translator.Translate(sql)
+}
+
+// ConvertSchema converts a schema to StarRocks schema.
+func (p *StarRocksPlugin) ConvertSchema(schema *models.Schema) (*models.Schema, error) {
+	return p.converter.ConvertSchema(schema)
 }

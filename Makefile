@@ -15,10 +15,7 @@ test:
 lint:
 	golangci-lint run
 
-plugins: build/starrocks build/clickhouse
+plugins: build-plugin-starrocks
 
-build/starrocks:
-	go build -buildmode=plugin -o plugins/starrocks.so ./plugins/starrocks
-
-build/clickhouse:
-	go build -buildmode=plugin -o plugins/clickhouse.so ./plugins/clickhouse
+build-plugin-starrocks:
+	go build -o bin/sqltracebench-starrocks-plugin ./cmd/plugins/starrocks/main.go
