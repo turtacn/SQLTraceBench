@@ -15,7 +15,7 @@ func newTestDBExecutionService(t *testing.T) (*DBExecutionService, sqlmock.Sqlmo
 	t.Helper()
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	require.NoError(t, err)
-	rc := services.NewTokenBucketRateController(100, 10)
+	rc := services.NewTokenBucketRateController(100, 1) // MaxConcurrency 1 to avoid race in sqlmock expectations
 	return &DBExecutionService{db: db, rc: rc}, mock
 }
 
@@ -33,8 +33,16 @@ func TestDBExecutionService_RunBench_Success(t *testing.T) {
 
 	// Expectations
 	mock.ExpectPing()
-	mock.ExpectExec("SELECT 1").WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec("SELECT 2").WillReturnResult(sqlmock.NewResult(1, 1))
+
+	// Query 1
+	prep1 := mock.ExpectPrepare("SELECT 1")
+	prep1.ExpectExec().WillReturnResult(sqlmock.NewResult(1, 1))
+	prep1.WillBeClosed()
+
+	// Query 2
+	prep2 := mock.ExpectPrepare("SELECT 2")
+	prep2.ExpectExec().WillReturnResult(sqlmock.NewResult(1, 1))
+	prep2.WillBeClosed()
 
 	// Execute
 	metrics, err := service.RunBench(context.Background(), workload)
@@ -79,7 +87,9 @@ func TestDBExecutionService_RunBench_ExecFails(t *testing.T) {
 
 	// Expectations
 	mock.ExpectPing()
-	mock.ExpectExec("SELECT 1").WillReturnError(assert.AnError)
+	prep := mock.ExpectPrepare("SELECT 1")
+	prep.ExpectExec().WillReturnError(assert.AnError)
+	prep.WillBeClosed()
 
 	// Execute
 	metrics, err := service.RunBench(context.Background(), workload)

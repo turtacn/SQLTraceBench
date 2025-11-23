@@ -1,0 +1,32 @@
+{
+  "version": "report.v1",
+  "timestamp": "2025-11-23T06:23:01.112203481Z",
+  "metadata": {
+    "base_target": "",
+    "candidate_target": "",
+    "threshold": 0.05,
+    "template_summary": null
+  },
+  "result": {
+    "base_metrics": {
+      "queries_executed": 100,
+      "Errors": 0,
+      "duration": 1000000000,
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "slow_queries": 0
+    },
+    "candidate_metrics": {
+      "queries_executed": 90,
+      "Errors": 0,
+      "duration": 1000000000,
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "slow_queries": 0
+    },
+    "pass": false,
+    "reason": "Validation failed. Candidate QPS of 90.00 is below the 5.00% threshold of the base QPS of 100.00 (difference of -10.00, -10.00%)."
+  }
+}

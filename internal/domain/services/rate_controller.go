@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -13,13 +14,15 @@ type RateController interface {
 	MaxConcurrency() int
 }
 
-// TokenBucketRateController implements a rate controller using the token bucket algorithm.
+// TokenBucketRateController implements a rate controller using the token bucket algorithm
+// combined with time.Sleep to ensure smooth distribution.
 type TokenBucketRateController struct {
 	qps            int
 	maxConcurrency int
-	tokens         chan struct{}
-	ticker         *time.Ticker
-	stopCh         chan struct{}
+
+	// mu protects the state of the rate limiter
+	mu              sync.Mutex
+	nextAllowedTime time.Time
 }
 
 // NewTokenBucketRateController creates a new token bucket rate controller.
@@ -34,48 +37,52 @@ func NewTokenBucketRateController(targetQPS, maxConcurrency int) *TokenBucketRat
 	return &TokenBucketRateController{
 		qps:            targetQPS,
 		maxConcurrency: maxConcurrency,
-		tokens:         make(chan struct{}, maxConcurrency),
-		stopCh:         make(chan struct{}),
 	}
 }
 
-// Start begins the token generation process.
+// Start initializes the rate controller.
+// For this implementation, no background goroutine is needed as we calculate sleeps on demand.
 func (c *TokenBucketRateController) Start(ctx context.Context) {
-	c.ticker = time.NewTicker(time.Second / time.Duration(c.qps))
-	go func() {
-		for i := 0; i < c.maxConcurrency; i++ {
-			c.tokens <- struct{}{}
-		}
-		for {
-			select {
-			case <-c.stopCh:
-				c.ticker.Stop()
-				return
-			case <-c.ticker.C:
-				select {
-				case c.tokens <- struct{}{}:
-				default:
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.nextAllowedTime = time.Now()
 }
 
-// Acquire attempts to get a token from the bucket.
+// Acquire blocks until a request is allowed to proceed based on the configured QPS.
+// It uses time.Sleep to smooth out the request rate.
 func (c *TokenBucketRateController) Acquire(ctx context.Context) error {
-	select {
-	case <-c.tokens:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	c.mu.Lock()
+	now := time.Now()
+	interval := time.Second / time.Duration(c.qps)
+
+	// If we are behind schedule (idle), reset nextAllowedTime to now.
+	if now.After(c.nextAllowedTime) {
+		c.nextAllowedTime = now
 	}
+
+	// Calculate the time this request is allowed to start.
+	targetTime := c.nextAllowedTime
+	// Advance the next allowed time for the next request.
+	c.nextAllowedTime = targetTime.Add(interval)
+	c.mu.Unlock()
+
+	// Calculate how long we need to sleep.
+	sleepDuration := targetTime.Sub(now)
+	if sleepDuration > 0 {
+		select {
+		case <-time.After(sleepDuration):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return nil
 }
 
-// Stop terminates the token generation goroutine.
+// Stop cleans up resources.
 func (c *TokenBucketRateController) Stop() {
-	close(c.stopCh)
+	// No resources to clean up in this implementation.
 }
 
 // MaxConcurrency returns the maximum concurrency of the rate controller.
