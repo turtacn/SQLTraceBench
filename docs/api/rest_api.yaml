@@ -1,0 +1,112 @@
+openapi: 3.0.0
+info:
+  title: SQL Trace Bench API
+  version: 2.0.0
+  description: RESTful API for trace generation and validation
+
+servers:
+  - url: http://localhost:8080/api/v2
+
+paths:
+  /generation/traces:
+    post:
+      summary: Generate traces
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                model:
+                  type: string
+                  enum: [markov, lstm, transformer]
+                count:
+                  type: integer
+                  minimum: 1
+                  maximum: 100000
+                config:
+                  type: object
+      responses:
+        '200':
+          description: Traces generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                  status:
+                    type: string
+                  trace_count:
+                    type: integer
+
+  /validation/traces/{job_id}:
+    post:
+      summary: Validate generated traces
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  validation_score:
+                    type: number
+                  tests_passed:
+                    type: integer
+                  report_url:
+                    type: string
+
+  /benchmark:
+    post:
+      summary: Run benchmark
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                models:
+                  type: array
+                  items:
+                    type: string
+                trace_count:
+                  type: integer
+      responses:
+        '200':
+          description: Benchmark completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  version:
+                    type: string

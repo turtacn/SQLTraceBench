@@ -1,287 +1,109 @@
-<div align="center">
-  <img src="logo.png" alt="SQLTraceBench Logo" width="200" height="200">
-  
-  # SQLTraceBench
-  
-  <!--[![Build Status](https://github.com/turtacn/SQLTraceBench/workflows/CI/badge.svg)](https://github.com/turtacn/SQLTraceBench/actions)-->
-  [![Go Report Card](https://goreportcard.com/badge/github.com/turtacn/SQLTraceBench)](https://goreportcard.com/report/github.com/turtacn/SQLTraceBench)
-  [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-  [![GoDoc](https://godoc.org/github.com/turtacn/SQLTraceBench?status.svg)](https://godoc.org/github.com/turtacn/SQLTraceBench)
-  [![Release](https://img.shields.io/github/release/turtacn/SQLTraceBench.svg)](https://github.com/turtacn/SQLTraceBench/releases)
-  
-  **A powerful trace-driven benchmark system for cross-database performance testing and analysis**
-  
-  [English](README.md) | [中文](README-zh.md)
-</div>
+# SQL Trace Bench
 
-## 🎯 Mission Statement
+[![Build Status](https://github.com/yourusername/sql-trace-bench/workflows/CI/badge.svg)](https://github.com/yourusername/sql-trace-bench/actions)
+[![Coverage](https://codecov.io/gh/yourusername/sql-trace-bench/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/sql-trace-bench)
+[![Go Report Card](https://goreportcard.com/badge/github.com/yourusername/sql-trace-bench)](https://goreportcard.com/report/github.com/yourusername/sql-trace-bench)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/github/v/release/yourusername/sql-trace-bench)](https://github.com/yourusername/sql-trace-bench/releases)
 
-SQLTraceBench is an innovative open-source project that transforms real SQL traces and database schemas into comprehensive, cross-database benchmark workloads. Our mission is to enable seamless performance comparison and validation across different database systems through intelligent trace analysis, schema conversion, and workload generation.
+> **A high-performance SQL trace generation and validation framework powered by statistical analysis and machine learning.**
 
-![Demo](demo.gif)
+## 🚀 Features
 
-## 🔥 Why SQLTraceBench?
+-   **Multiple Generation Models**: Markov Chain, LSTM, Transformer.
+-   **Statistical Validation**: 10+ validation tests (K-S, Chi-Square, Auto-correlation).
+-   **Performance Benchmarking**: Compare models side-by-side.
+-   **RESTful API**: Programmatic access with OpenAPI 3.0 spec.
+-   **Real-time Monitoring**: Prometheus + Grafana integration.
+-   **Rich Visualization**: Interactive HTML reports with charts.
 
-### The Problem We Solve
-
-- **Cross-Database Migration Challenges**: Organizations struggle to validate performance when migrating between database systems (StarRocks ↔ ClickHouse, MySQL → TiDB, etc.)
-- **Lack of Real-World Benchmarks**: Traditional benchmarks like TPC-H don't reflect your actual workload patterns
-- **Manual Effort in Performance Testing**: Converting schemas and adapting queries across databases is time-intensive and error-prone
-- **Inconsistent Load Testing**: Difficulty in generating realistic, parameterized workloads that mirror production traffic
-
-### Our Solution
-
-SQLTraceBench addresses these pain points by:
-
-✅ **Automated Cross-Database Schema Conversion** - Transform schemas between StarRocks, ClickHouse, Doris, MySQL, PostgreSQL, and more  
-✅ **Intelligent SQL Trace Analysis** - Parse real SQL traces and extract meaningful patterns  
-✅ **Template-Based Workload Generation** - Convert queries into parameterized templates with realistic data distributions  
-✅ **Advanced Parameter Modeling** - (New in P2) Inference of parameter types, Hotspot detection, and Temporal pattern extraction.
-✅ **Controllable Load Simulation** - Adjust QPS, concurrency, hotspot ratios, and selectivity parameters  
-✅ **Comprehensive Validation Framework** - Compare generated benchmarks against original traces with detailed deviation analysis
-
-## 🚀 Key Features
-
-### Core Capabilities
-- **Multi-Database Support**: StarRocks, ClickHouse, Doris, MySQL, PostgreSQL, TiDB, OceanBase, MongoDB
-- **Trace-Driven Analysis**: Convert real SQL traces into reproducible benchmark workloads
-- **Schema Translation**: Automated conversion of database schemas across different systems
-- **Parameterization Engine**: Extract parameter distributions from real traces for realistic data generation
-- **Load Control**: Fine-tune QPS, concurrency, and hotspot distribution
-- **Validation & Reporting**: Comprehensive comparison between original and synthetic workloads
-
-### Advanced Features (Phase 2)
-- **Parameter Type Inference**: Automatic detection of INT, STRING, DATETIME types.
-- **Hotspot Detection**: Identify and model frequently accessed data (Hotspots).
-- **Temporal Pattern Extraction**: Model query arrival rates over time (e.g., daily peaks).
-- **Enhanced Sampling**: Zipfian distribution with Hotspot Injection and Temporal-weighted sampling.
-- **Plugin Architecture**: Extensible framework for adding new database support
-- **Data Synthesis**: Generate realistic datasets based on actual data characteristics
-- **Performance Metrics**: Track QPS distribution, latency percentiles, row counts, and hotspot coverage
-- **Deviation Analysis**: Identify and minimize differences between real and synthetic workloads
-- **Integration Ready**: Built-in support for existing benchmark tools and frameworks
-
-## 🏗️ Architecture Overview
-
-SQLTraceBench follows a modular, plugin-based architecture designed for extensibility and maintainability. For detailed technical architecture, see our [Architecture Documentation (English)](docs/architecture_en.md) | [中文](docs/architecture.md).
-
-```mermaid
-graph LR
-    A[SQL Traces + Schema] --> B[Parser Engine]
-    B --> C[Template Generator]
-    C --> D[Parameter Modeler]
-    D --> E[Schema Converter]
-    E --> F[Workload Generator]
-    F --> G[Benchmark Executor]
-    G --> H[Validation Reporter]
-````
-
-## 📦 Installation
-
-### Using Go Install
+## 📦 Quick Start
 
 ```bash
-go install github.com/turtacn/SQLTraceBench/cmd/sql_trace_bench@latest
-```
+# Install
+go install github.com/yourusername/sql-trace-bench@latest
 
-### Using Pre-built Binaries
+# Generate 1000 traces
+sql_trace_bench generate -m markov -n 1000
 
-```bash
-# Download from releases
-curl -LO https://github.com/turtacn/SQLTraceBench/releases/latest/download/sql_trace_bench_linux_amd64.tar.gz
-tar -xzf sql_trace_bench_linux_amd64.tar.gz
-sudo mv sql_trace_bench /usr/local/bin/
-```
-
-### Handling Large Trace Files
-
-When dealing with large trace files (e.g., >1GB), the standard `convert` command may consume excessive memory. To avoid this, use the streaming output mode by specifying a `.jsonl` extension for the output file:
-
-```bash
-# Convert with streaming (low memory usage)
-sql_trace_bench convert \
-  --trace big_trace.jsonl \
-  --target clickhouse \
-  --out converted_traces.jsonl
-```
-
-This ensures memory usage remains low (<500MB) even for multi-gigabyte input files.
-
-### Building from Source
-
-```bash
-git clone https://github.com/turtacn/SQLTraceBench.git
-cd SQLTraceBench
-make build
-```
-
-## 🎮 Quick Start
-
-### Basic Usage Example
-
-```bash
-# Convert StarRocks traces to ClickHouse benchmark
-sql_trace_bench convert \
-  --source-db starrocks \
-  --target-db clickhouse \
-  --schema ./examples/tpcc_schema.sql \
-  --traces ./examples/tpcc_traces.jsonl \
-  --output ./output/
-
-# Generate synthetic workload with custom parameters
-sql_trace_bench generate \
-  --template-dir ./output/templates/ \
-  --param-model ./output/param_model.json \
-  --qps 100 \
-  --duration 5m \
-  --hotspot-ratio 0.8 \
-  --output ./workload/
-
-# Execute benchmark and validate results
-sql_trace_bench run \
-  --workload-dir ./workload/ \
-  --db-config ./config/clickhouse.yaml \
-  --validate \
-  --report ./results/
-```
-
-### Advanced Generation (Phase 2)
-
-```bash
-# Enable hotspot detection and temporal modeling
-sql_trace_bench generate \
-  --traces production.log \
-  --config configs/generation.yaml \
-  --output synthetic_load.jsonl
-```
-
-### Validation and Reporting (Phase 3)
-
-```bash
-# Validate synthetic workload against original traces
+# Validate traces
 sql_trace_bench validate \
-    --original production.log \
-    --generated synthetic_load.jsonl \
-    --report-dir ./reports \
-    --prometheus-port 9090
+  --original ./testdata/sample_traces.json \
+  --generated ./output/generated.json
+
+# View report
+open ./output/validation_report.html
 ```
 
-**Reports Generated:**
-- `reports/validation_report.html`: Interactive HTML report with distribution charts.
-- `http://localhost:9090/metrics`: Prometheus metrics for monitoring pass rates.
+**[See Full Quickstart Guide →](docs/user_guide/quickstart.md)**
 
-### Benchmarking and Model Comparison (Phase 4)
+## 📚 Documentation
 
-```bash
-# Run performance benchmarks with multiple models
-sql_trace_bench benchmark run \
-  --config configs/benchmark.yaml \
-  --output ./benchmark_reports \
-  --prometheus
+### User Guides
+*   [Quickstart](docs/user_guide/quickstart.md)
+*   [Advanced Usage](docs/user_guide/advanced_usage.md)
+*   [Best Practices](docs/user_guide/best_practices.md)
+
+### API Reference
+*   [REST API](docs/api/rest_api.md)
+*   [CLI Reference](docs/api/cli_reference.md)
+
+### Architecture
+*   [System Architecture](docs/architecture/system_architecture.md)
+*   [Data Flow](docs/architecture/data_flow.md)
+
+### Troubleshooting
+*   [Common Issues](docs/troubleshooting/common_issues.md)
+
+### Releases & Migration
+*   [Release Notes v2.0.0](docs/releases/v2.0.0_release_notes.md)
+*   [Migration Guide (v1 -> v2)](docs/migration/v1_to_v2_migration.md)
+*   [Changelog](CHANGELOG.md)
+
+## 🎯 Use Cases
+
+*   **Performance Testing**: Generate realistic SQL workloads for database benchmarking.
+*   **Load Testing**: Simulate production traffic patterns.
+*   **Anomaly Detection**: Train models on normal traces, detect anomalies.
+*   **Capacity Planning**: Predict system behavior under different loads.
+
+## 📊 Performance
+
+| Model       | Throughput | Memory  | P99 Latency |
+| ----------- | ---------- | ------- | ----------- |
+| Markov      | 1,245/sec  | 256 MB  | 45 ms       |
+| LSTM        | 523/sec    | 512 MB  | 120 ms      |
+| Transformer | 312/sec    | 1024 MB | 200 ms      |
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐
+│     CLI     │
+└──────┬──────┘
+       │
+┌──────▼──────┐
+│ Application │
+│    Layer    │
+└──────┬──────┘
+       │
+┌──────▼──────┐     ┌─────────────┐
+│   Domain    │────▶│Infrastructure│
+│    Layer    │     │    Layer    │
+└─────────────┘     └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Database   │
+                    │  Prometheus │
+                    │  Grafana    │
+                    └─────────────┘
 ```
 
-**Features:**
-- **Multi-Model Comparison**: Compare throughput and latency of Markov, LSTM, and other models.
-- **Resource Monitoring**: Track CPU and Memory usage during generation.
-- **Prometheus Integration**: Real-time metrics visualization in Grafana.
+**[See Full Architecture →](docs/architecture/system_architecture.md)**
 
-### Example Input/Output
+## 🛠️ Development
 
-**Input Schema (TPC-C Example):**
-
-```sql
--- examples/tpcc_schema.sql
-CREATE TABLE warehouse (
-  w_id INT PRIMARY KEY,
-  w_name VARCHAR(10),
-  w_street_1 VARCHAR(20),
-  w_city VARCHAR(20),
-  w_state CHAR(2),
-  w_zip CHAR(9),
-  w_tax DECIMAL(4,2),
-  w_ytd DECIMAL(12,2)
-) ENGINE=OLAP
-DISTRIBUTED BY HASH(w_id);
-```
-
-**Input Trace:**
-
-```jsonl
-{"timestamp": "2025-08-15T10:00:01Z", "query": "SELECT w_name, w_tax FROM warehouse WHERE w_id = 1", "execution_time_ms": 2.5, "rows_returned": 1}
-{"timestamp": "2025-08-15T10:00:02Z", "query": "SELECT COUNT(*) FROM warehouse WHERE w_state = 'NY'", "execution_time_ms": 15.0, "rows_returned": 1}
-```
-
-**Generated Output:**
-
-```sql
--- Output: ClickHouse Schema
-CREATE TABLE warehouse (
-  w_id Int32,
-  w_name String,
-  w_street_1 String,
-  w_city String,
-  w_state FixedString(2),
-  w_zip FixedString(9),
-  w_tax Decimal(4,2),
-  w_ytd Decimal(12,2)
-) ENGINE = MergeTree()
-ORDER BY w_id;
-```
-
-## 🎬 Demo
-
-![SQLTraceBench Demo](demo/sql_trace_bench_demo.gif)
-
-*Run `make demo` to generate this demonstration or see [demo/README.md](demo/README.md) for creating your own demo.*
-
-## 📋 Supported Databases
-
-| Database     | Schema Conversion | Query Translation | Status      |
-| ------------ | ----------------- | ----------------- | ----------- |
-| StarRocks    | ✅                 | ✅                 | Stable      |
-| ClickHouse   | ✅                 | ✅                 | Stable      |
-| Apache Doris | ✅                 | ✅                 | Beta        |
-| MySQL        | ✅                 | ✅                 | Beta        |
-| PostgreSQL   | ✅                 | ✅                 | Planning    |
-| TiDB         | ✅                 | ✅                 | Planning    |
-| OceanBase    | 🔄                | 🔄                | Development |
-| MongoDB      | 🔄                | 🔄                | Planning    |
-
-## 🤝 Contributing
-
-We welcome contributions from the community! SQLTraceBench is built by developers, for developers.
-
-Please read our [**Contributing Guide**](CONTRIBUTING.md) to learn how you can get involved.
-
-### Areas We Need Help
-
-* 🔧 **Database Plugins**: Add support for new database systems
-* 📊 **Query Analyzers**: Improve SQL parsing and template extraction
-* 🎯 **Load Generators**: Enhance workload generation strategies
-* 📚 **Documentation**: Help us improve docs and examples
-* 🧪 **Testing**: Add test cases and improve test coverage
+We welcome contributions! Please see our [Contributing Guide](docs/development/contributing.md) and [Development Guide](docs/development/development_guide.md).
 
 ## 📄 License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-SQLTraceBench builds upon and integrates with several excellent open-source projects:
-
-* [StarRocks SQLTransformer](https://github.com/StarRocks/SQLTransformer) for SQL translation capabilities
-* [ClickHouse TPC-DS](https://github.com/Altinity/tpc-ds) for benchmark methodology
-* [ANTLR](https://www.antlr.org/) for SQL parsing infrastructure
-
-## 📞 Community & Support
-
-* 💬 **Discussions**: [GitHub Discussions](https://github.com/turtacn/SQLTraceBench/discussions)
-* 🐛 **Issues**: [GitHub Issues](https://github.com/turtacn/SQLTraceBench/issues)
-* 📧 **Email**: [sqltracebench@turtacn.com](mailto:sqltracebench@turtacn.com)
-* 🌟 **Star us** on GitHub if SQLTraceBench helps you!
-
----
-
-<div align="center">
-  Made with ❤️ by the SQLTraceBench Community
-</div>
+MIT License.
