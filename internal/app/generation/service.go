@@ -12,6 +12,8 @@ import (
 // Service is the interface for the workload generation service.
 type Service interface {
 	GenerateWorkload(ctx context.Context, tplPath string, n int) (*models.BenchmarkWorkload, error)
+	// SetSampler allows configuring the sampler used for generation.
+	SetSampler(sampler services.Sampler)
 }
 
 // DefaultService is the default implementation of the workload generation service.
@@ -27,6 +29,11 @@ func NewService() Service {
 		workloadSvc: services.NewWorkloadService(sampler),
 		paramSvc:    services.NewParameterService(),
 	}
+}
+
+// SetSampler updates the sampler used by the workload service.
+func (s *DefaultService) SetSampler(sampler services.Sampler) {
+	s.workloadSvc = services.NewWorkloadService(sampler)
 }
 
 // GenerateWorkload creates a benchmark workload from a set of SQL templates.

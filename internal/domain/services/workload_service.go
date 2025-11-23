@@ -22,9 +22,29 @@ func (s *WorkloadService) GenerateWorkload(
 ) (*models.BenchmarkWorkload, error) {
 	var wl models.BenchmarkWorkload
 
+	// We might want to distribute 'n' queries across templates based on their weights?
+	// Currently it generates 'n' queries *per template*.
+	// The CLI help says "Number of queries to generate per template".
+	// So we keep this behavior.
+
 	for _, t := range templates {
+		// If the template has no parameters, we just generate the query as is.
+		if len(t.Parameters) == 0 {
+			for i := 0; i < n; i++ {
+				// No params to replace
+				wl.Queries = append(wl.Queries, models.QueryWithArgs{
+					Query: t.RawSQL,
+					Args:  []interface{}{},
+				})
+			}
+			continue
+		}
+
 		templateParams, ok := pm.TemplateParameters[t.GroupKey]
+		// If we don't have a model for this template, we can't generate parameterized queries reliably
+		// unless we use defaults/dummies.
 		if !ok {
+			// Skip or warn? For now continue.
 			continue
 		}
 
@@ -39,6 +59,8 @@ func (s *WorkloadService) GenerateWorkload(
 
 				sampledValue, err := s.sampler.Sample(dist)
 				if err != nil {
+					// Fallback if sampling fails (e.g. empty distribution)
+					// If distribution is empty, we should probably have a default value.
 					params[paramName] = "default"
 					continue
 				}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
+	"github.com/turtacn/SQLTraceBench/pkg/math/distributions"
 	"github.com/turtacn/SQLTraceBench/pkg/types"
 )
 
@@ -55,5 +56,71 @@ func (s *WeightedRandomSampler) Sample(dist *models.ValueDistribution) (interfac
 	}
 
 	// Fallback in case of floating point inaccuracies
-	return dist.Values[len(dist.Values)-1], nil
+	if len(dist.Values) > 0 {
+		return dist.Values[len(dist.Values)-1], nil
+	}
+	return nil, types.NewError(types.ErrInvalidInput, "cannot sample from an empty distribution")
+}
+
+// ZipfSampler selects a value from a distribution based on a Zipfian distribution.
+// It ignores the observed frequencies and instead imposes a Zipfian distribution
+// on the set of observed values (assuming they are ranked by importance or simply by index).
+type ZipfSampler struct {
+	rand *rand.Rand
+	s    float64 // Skewness parameter (s > 1)
+	v    float64 // Parameter v (v >= 1), typically 1
+}
+
+// NewZipfSampler creates a new ZipfSampler.
+// s is the skewness parameter. Larger values mean more skew (more "hotspot").
+func NewZipfSampler(s float64) *ZipfSampler {
+	return &ZipfSampler{
+		rand: rand.New(rand.NewSource(time.Now().UnixNano())),
+		s:    s,
+		v:    1.0,
+	}
+}
+
+// NewSeededZipfSampler creates a new ZipfSampler with a specific seed.
+func NewSeededZipfSampler(seed int64, s float64) *ZipfSampler {
+	return &ZipfSampler{
+		rand: rand.New(rand.NewSource(seed)),
+		s:    s,
+		v:    1.0,
+	}
+}
+
+// Sample performs Zipfian sampling on the *indices* of the given value distribution.
+// It maps the generated Zipf index to the value at that index in the Values slice.
+func (z *ZipfSampler) Sample(dist *models.ValueDistribution) (interface{}, error) {
+	n := len(dist.Values)
+	if n == 0 {
+		return nil, types.NewError(types.ErrInvalidInput, "cannot sample from an empty distribution")
+	}
+
+	// If there's only one value, just return it.
+	if n == 1 {
+		return dist.Values[0], nil
+	}
+
+	// math/rand.Zipf requires imax (upper bound inclusive).
+	// So imax should be n - 1.
+	imax := uint64(n - 1)
+
+	// Create a Zipf generator for this specific distribution size.
+	// Since creating a Zipf generator can be expensive if done repeatedly for large N,
+	// ideally we would cache it, but for now we create it on the fly or use a lighter approach.
+	// Given we are simulating hotspots, 'n' (number of unique parameter values) might not be huge.
+
+	// We use our wrapper which uses math/rand.Zipf
+	gen := distributions.NewZipfGeneratorWithRand(z.rand, z.s, z.v, imax)
+
+	idx := gen.Uint64()
+
+	// Safety check, though Zipf should guarantee [0, imax]
+	if idx >= uint64(n) {
+		idx = 0 // Fallback to most frequent
+	}
+
+	return dist.Values[idx], nil
 }
