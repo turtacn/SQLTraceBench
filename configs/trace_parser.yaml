@@ -1,0 +1,3 @@
+parser:
+  buffer_size: 1048576 # 1MB
+  error_threshold: 100 # Stop after 100 errors, or use as warning threshold

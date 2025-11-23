@@ -2,7 +2,6 @@ package conversion
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -10,6 +9,8 @@ import (
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
+	"github.com/turtacn/SQLTraceBench/internal/infrastructure/parsers"
+	"github.com/turtacn/SQLTraceBench/pkg/utils"
 	"github.com/turtacn/SQLTraceBench/plugins/clickhouse"
 )
 
@@ -24,6 +25,7 @@ type ConvertRequest struct {
 type Service interface {
 	ConvertFromFile(ctx context.Context, tracePath string) ([]models.SQLTemplate, error)
 	ConvertSchemaFromFile(ctx context.Context, req ConvertRequest) error
+	ConvertStreamingly(ctx context.Context, tracePath string, bufferSize int, callback func(models.SQLTrace) error) error
 }
 
 // DefaultService is the default implementation of the conversion service.
@@ -49,13 +51,14 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath string) 
 	defer file.Close()
 
 	var traces []models.SQLTrace
-	dec := json.NewDecoder(file)
-	for dec.More() {
-		var t models.SQLTrace
-		if err := dec.Decode(&t); err != nil {
-			return nil, err
-		}
-		traces = append(traces, t)
+	parser := parsers.NewStreamingTraceParser(0) // Default buffer size
+
+	err = parser.Parse(file, func(trace models.SQLTrace) error {
+		traces = append(traces, trace)
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	tc := models.TraceCollection{Traces: traces}
@@ -72,6 +75,20 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath string) 
 	}
 
 	return tpls, nil
+}
+
+// ConvertStreamingly processes traces line-by-line using the provided callback.
+// This prevents OOM errors by avoiding loading all traces into memory.
+func (s *DefaultService) ConvertStreamingly(ctx context.Context, tracePath string, bufferSize int, callback func(models.SQLTrace) error) error {
+	file, err := os.Open(tracePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	parser := parsers.NewStreamingTraceParser(bufferSize)
+
+	return parser.Parse(file, callback)
 }
 
 // ConvertSchemaFromFile reads a SQL schema file, converts it to the target dialect, and writes the result.
@@ -148,8 +165,7 @@ func parseDDLFile(path string) (*models.Schema, error) {
 		if strings.HasPrefix(strings.ToUpper(stmt), "CREATE TABLE") {
 			table, err := parseCreateTable(stmt)
 			if err != nil {
-				// Log error and continue?
-				fmt.Printf("Warning: failed to parse table: %v\n", err)
+				utils.GetGlobalLogger().Error("Failed to parse table", utils.Field{Key: "error", Value: err})
 				continue
 			}
 			schema.Databases[0].Tables = append(schema.Databases[0].Tables, table)

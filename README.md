@@ -88,6 +88,20 @@ tar -xzf sql_trace_bench_linux_amd64.tar.gz
 sudo mv sql_trace_bench /usr/local/bin/
 ```
 
+### Handling Large Trace Files
+
+When dealing with large trace files (e.g., >1GB), the standard `convert` command may consume excessive memory. To avoid this, use the streaming output mode by specifying a `.jsonl` extension for the output file:
+
+```bash
+# Convert with streaming (low memory usage)
+sql_trace_bench convert \
+  --trace big_trace.jsonl \
+  --target clickhouse \
+  --out converted_traces.jsonl
+```
+
+This ensures memory usage remains low (<500MB) even for multi-gigabyte input files.
+
 ### Building from Source
 
 ```bash
