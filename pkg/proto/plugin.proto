@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/turtacn/SQLTraceBench/pkg/proto";
+
+service SQLTraceBenchPlugin {
+    rpc GetName(Empty) returns (NameResponse);
+    rpc TranslateQuery(TranslateQueryRequest) returns (TranslateQueryResponse);
+    rpc ConvertSchema(ConvertSchemaRequest) returns (ConvertSchemaResponse);
+}
+
+message Empty {}
+
+message NameResponse {
+    string name = 1;
+}
+
+message TranslateQueryRequest {
+    string sql = 1;
+}
+
+message TranslateQueryResponse {
+    string translated_sql = 1;
+    string error = 2;
+}
+
+message ConvertSchemaRequest {
+    string schema = 1;
+}
+
+message ConvertSchemaResponse {
+    string converted_schema = 1;
+    string error = 2;
+}
