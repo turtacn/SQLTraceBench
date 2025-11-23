@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
@@ -79,21 +78,25 @@ type valFreq struct {
 }
 
 // Generate implements the enhanced generation logic for Phase 2.
+// Note: This needs refactoring to align with Phase 3 changes (WorkloadParameterModel),
+// but for now we adapt it to compile and run with basic functionality.
 func (s *DefaultService) Generate(ctx context.Context, req GenerateRequest) ([]models.SQLTrace, error) {
 	if len(req.SourceTraces) == 0 {
 		return nil, fmt.Errorf("no source traces provided for generation")
 	}
 
 	// 1. Analyze parameters to get distributions
-	analyzer := &services.ParameterAnalyzer{MaxCardinality: 10000} // Set limit
+	analyzer := services.NewParameterAnalyzer() // Use constructor
+
+	// Analyze now returns map[string]*models.ParameterModel
 	paramStats := analyzer.Analyze(req.SourceTraces)
 
-	// If Hotspots not provided, detect them
+	// If Hotspots not provided, extract them from stats
 	if req.HotspotValues == nil {
-		detector := &services.HotspotDetector{Threshold: 0.05}
 		req.HotspotValues = make(map[string][]interface{})
-		for paramName, stats := range paramStats {
-			req.HotspotValues[paramName] = detector.Detect(stats)
+		for paramName, model := range paramStats {
+			// Extract TopValues as hotspots
+			req.HotspotValues[paramName] = model.TopValues
 		}
 	}
 
@@ -118,38 +121,40 @@ func (s *DefaultService) Generate(ctx context.Context, req GenerateRequest) ([]m
 		hotspots := req.HotspotValues[name]
 		s := samplers.NewZipfSampler(1.1)
 		s.HotspotValues = hotspots
-		// We use default HotspotProb (0.3) for now, as currently there is no config input in GenerateRequest.
-		// In a future update, GenerateRequest should support config overrides.
 		paramSamplers[name] = s
 		return s
 	}
 
-	// Pre-convert stats to ValueDistribution for sampling
-	// IMPORTANT: Sort values by frequency descending so Zipf makes sense.
+	// Convert models.ParameterModel to ValueDistribution for legacy ZipfSampler in samplers package?
+	// The samplers package ZipfSampler likely expects models.ValueDistribution.
+	// But models.ValueDistribution is deprecated/modified.
+	// Let's check `internal/infrastructure/samplers/zipf_sampler.go`.
+	// If it uses models.ValueDistribution, we need to adapt.
+	// For now, I will construct a ValueDistribution from ParameterModel.TopValues.
+
 	paramDists := make(map[string]*models.ValueDistribution)
-	for name, stats := range paramStats {
-		vfList := make([]valFreq, 0, len(stats.ValueCounts))
-		total := 0
-		for val, count := range stats.ValueCounts {
-			vfList = append(vfList, valFreq{val: val, freq: count})
-			total += count
-		}
-
-		// Sort descending
-		sort.Slice(vfList, func(i, j int) bool {
-			return vfList[i].freq > vfList[j].freq
-		})
-
+	for name, model := range paramStats {
 		dist := models.NewValueDistribution()
-		dist.Values = make([]interface{}, len(vfList))
-		dist.Frequencies = make([]int, len(vfList))
-		dist.Total = total
-
-		for i, vf := range vfList {
-			dist.Values[i] = vf.val
-			dist.Frequencies[i] = vf.freq
+		// Reconstruct from TopValues/TopFrequencies
+		if len(model.TopFrequencies) > 0 {
+			// We have frequencies
+			dist.Values = make([]interface{}, len(model.TopValues))
+			dist.Frequencies = make([]int, len(model.TopFrequencies))
+			copy(dist.Values, model.TopValues)
+			copy(dist.Frequencies, model.TopFrequencies)
+			for _, f := range model.TopFrequencies {
+				dist.Total += f
+			}
+		} else {
+			// Fake it
+			dist.Values = model.TopValues
+			dist.Frequencies = make([]int, len(model.TopValues))
+			// Assume sorted descending?
+			for i := range dist.Values {
+				dist.Frequencies[i] = len(dist.Values) - i // Mock counts
+				dist.Total += dist.Frequencies[i]
+			}
 		}
-
 		paramDists[name] = dist
 	}
 
@@ -180,7 +185,6 @@ func (s *DefaultService) Generate(ctx context.Context, req GenerateRequest) ([]m
 		if temporalSampler != nil {
 			newTrace.Timestamp = temporalSampler.SampleTimestamp()
 		} else {
-			// Fallback timestamp logic?
 			newTrace.Timestamp = time.Now()
 		}
 

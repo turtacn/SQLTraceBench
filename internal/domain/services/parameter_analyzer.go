@@ -25,29 +25,38 @@ type ParameterStats struct {
 
 type ParameterAnalyzer struct {
 	MaxCardinality int // Max unique values to track per parameter
+	detector       *HotspotDetector
 }
 
-func (a *ParameterAnalyzer) Analyze(traces []models.SQLTrace) map[string]*ParameterStats {
-	result := make(map[string]*ParameterStats)
+func NewParameterAnalyzer() *ParameterAnalyzer {
+	return &ParameterAnalyzer{
+		MaxCardinality: 10000,
+		detector:       NewHotspotDetector(),
+	}
+}
+
+// Analyze processes traces and returns statistical models for each parameter.
+func (a *ParameterAnalyzer) Analyze(traces []models.SQLTrace) map[string]*models.ParameterModel {
+	statsMap := make(map[string]*ParameterStats)
 	limit := a.MaxCardinality
 	if limit <= 0 {
-		limit = 10000 // Default limit
+		limit = 10000
 	}
 
-	// Pre-process to identify all parameters
+	// 1. Accumulate Statistics
 	for _, trace := range traces {
 		if trace.Parameters == nil {
 			continue
 		}
 		for paramName, value := range trace.Parameters {
-			stats, ok := result[paramName]
+			stats, ok := statsMap[paramName]
 			if !ok {
 				stats = &ParameterStats{
 					ParamName:   paramName,
 					Type:        ParamTypeUnknown,
 					ValueCounts: make(map[interface{}]int),
 				}
-				result[paramName] = stats
+				statsMap[paramName] = stats
 			}
 
 			// Type inference logic
@@ -56,28 +65,29 @@ func (a *ParameterAnalyzer) Analyze(traces []models.SQLTrace) map[string]*Parame
 			} else if stats.Type != ParamTypeString {
 				currentType := inferType(value)
 				if currentType != stats.Type {
+					// Fallback to string if mixed types
 					stats.Type = ParamTypeString
 				}
 			}
 
-			// Count value with cardinality protection
-			// If map is full and value is new, skip or replace?
-			// Simple approach: skip new values if limit reached.
-			// Better approach (SpaceSaving) is complex.
-			// Given this is a benchmark tool, we likely want "Heavy Hitters".
-			// If we just drop new ones, we might miss late-arriving heavy hitters.
-			// But implementing a full sketch is out of scope.
-			// We'll stick to: if len < limit OR value exists, increment.
+			// Count value
 			if len(stats.ValueCounts) < limit {
 				stats.ValueCounts[value]++
 			} else {
 				if _, exists := stats.ValueCounts[value]; exists {
 					stats.ValueCounts[value]++
 				}
-				// else: ignore tail value
+				// else: ignore tail
 			}
 			stats.TotalCount++
 		}
+	}
+
+	// 2. Convert to ParameterModel using HotspotDetector
+	result := make(map[string]*models.ParameterModel)
+	for paramName, stats := range statsMap {
+		model := a.detector.DetectDistribution(stats)
+		result[paramName] = model
 	}
 
 	return result

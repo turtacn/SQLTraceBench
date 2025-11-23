@@ -15,6 +15,12 @@ func TestParameterService_BuildModel(t *testing.T) {
 	tc.Add(models.SQLTrace{Query: "select * from users where id = 1"})
 	tc.Add(models.SQLTrace{Query: "select * from users where id = 2"})
 	tc.Add(models.SQLTrace{Query: "select * from users where id = 1"})
+
+	// Ensure we match what the extractor expects.
+	// The extractor expects :id, but trace uses 1.
+	// Regex extractor might expect params in raw SQL or similar.
+	// But in this test, we construct SQLTemplate manually.
+
 	templates := []models.SQLTemplate{
 		{
 			RawSQL:   "select * from users where id = :id",
@@ -32,7 +38,14 @@ func TestParameterService_BuildModel(t *testing.T) {
 	paramDist, ok := pm.TemplateParameters["select * from users where id = :id"][":id"]
 	assert.True(t, ok, "should have a distribution for the :id parameter")
 
-	// We expect two unique values for the :id parameter
-	assert.Len(t, paramDist.Values, 2, "should have 2 unique values")
-	assert.Equal(t, 3, paramDist.Total, "should have 3 total observations")
+	// We expect two unique values for the :id parameter (1 and 2)
+	// But note: "1" appears twice, "2" once.
+	// HotspotDetector puts them in TopValues.
+	assert.Len(t, paramDist.TopValues, 2, "should have 2 unique top values")
+
+	// Verify counts if possible via TopFrequencies
+	// "1" count 2, "2" count 1.
+	// TopValues should be sorted by frequency.
+	assert.Equal(t, "1", paramDist.TopValues[0])
+	assert.Equal(t, 2, paramDist.TopFrequencies[0])
 }

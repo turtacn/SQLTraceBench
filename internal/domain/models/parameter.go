@@ -1,21 +1,53 @@
 package models
 
-// ParameterModel holds the statistical model of parameters for a set of SQL templates.
-// It maps each template (by its GroupKey) to a model of its parameters.
+// DistributionType defines the type of statistical distribution.
+type DistributionType string
+
+const (
+	DistUniform DistributionType = "uniform"
+	DistZipfian DistributionType = "zipfian"
+	DistNormal  DistributionType = "normal"
+	DistEmpirical DistributionType = "empirical" // Fallback for arbitrary distribution
+)
+
+// ParameterModel holds the detailed statistical model for a single parameter.
 type ParameterModel struct {
-	// TemplateParameters maps a template's GroupKey to a map of its parameters.
-	// Each parameter is then mapped to its value distribution.
-	TemplateParameters map[string]map[string]*ValueDistribution
+	ParamName      string           `json:"param_name"`
+	DataType       string           `json:"data_type"` // e.g., "INT", "VARCHAR"
+	DistType       DistributionType `json:"dist_type"` // Detected distribution
+
+	// Zipf specific
+	ZipfS          float64 `json:"zipf_s,omitempty"` // Skewness parameter
+	ZipfV          float64 `json:"zipf_v,omitempty"` // Value range parameter (usually 1)
+
+	// Stats
+	Cardinality    int     `json:"cardinality"`
+	HotspotRatio   float64 `json:"hotspot_ratio"` // e.g., 0.8 means 20% items get 80% traffic
+
+	// Sample Values (for reproduction)
+	// We store TopValues and TopFrequencies to support empirical sampling of hotspots.
+	TopValues      []interface{} `json:"top_values"`
+	TopFrequencies []int         `json:"top_frequencies"`
 }
 
-// NewParameterModel creates an empty parameter model.
-func NewParameterModel() *ParameterModel {
-	return &ParameterModel{
-		TemplateParameters: make(map[string]map[string]*ValueDistribution),
+// WorkloadParameterModel holds the statistical model of parameters for a set of SQL templates.
+// It maps each template (by its GroupKey) to a model of its parameters.
+type WorkloadParameterModel struct {
+	// TemplateParameters maps a template's GroupKey to a map of its parameters.
+	// Each parameter is then mapped to its parameter model.
+	TemplateParameters map[string]map[string]*ParameterModel
+}
+
+// NewWorkloadParameterModel creates an empty workload parameter model.
+func NewWorkloadParameterModel() *WorkloadParameterModel {
+	return &WorkloadParameterModel{
+		TemplateParameters: make(map[string]map[string]*ParameterModel),
 	}
 }
 
 // ValueDistribution holds the observed values and their frequencies for a single parameter.
+// Deprecated: This struct is kept for temporary compatibility but should be replaced by ParameterModel.
+// Or we use this to accumulate data before converting to ParameterModel.
 type ValueDistribution struct {
 	// Values is a slice of unique parameter values.
 	Values []interface{}

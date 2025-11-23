@@ -21,8 +21,6 @@ func TestEndToEnd_GenerationFidelity(t *testing.T) {
 	startTime := time.Now()
 
 	// Create a Zipf distribution for source data
-	// Increase skew to 1.5 to make the head naturally hotter (closer to the 30% injection behavior)
-	// This makes the fidelity check pass as the "natural" distribution is closer to the "injected" one.
 	zipfSrc := rand.NewZipf(rand.New(rand.NewSource(123)), 1.5, 1.0, 99)
 
 	for i := 0; i < 2000; i++ {
@@ -39,12 +37,15 @@ func TestEndToEnd_GenerationFidelity(t *testing.T) {
 	}
 
 	// 2. Analyze
-	analyzer := &services.ParameterAnalyzer{}
+	analyzer := services.NewParameterAnalyzer()
 	paramStats := analyzer.Analyze(traces)
 
-	detector := &services.HotspotDetector{Threshold: 0.1}
-	hotspots := detector.Detect(paramStats["id"])
-	assert.Contains(t, hotspots, 0)
+	// Hotspot detection is now part of analyzer
+	// We can check the model
+	assert.Equal(t, models.DistZipfian, paramStats["id"].DistType)
+
+	// Check top value is 0 (most frequent in Zipf)
+	assert.Equal(t, 0, paramStats["id"].TopValues[0])
 
 	extractor := &services.TemporalPatternExtractor{Window: time.Hour}
 	patterns := extractor.Extract(traces)
@@ -52,8 +53,9 @@ func TestEndToEnd_GenerationFidelity(t *testing.T) {
 	// 3. Generate
 	genService := generation.NewService().(*generation.DefaultService)
 
+	// We use model's top values as hotspots for generation input
 	hotspotMap := map[string][]interface{}{
-		"id": hotspots,
+		"id": paramStats["id"].TopValues,
 	}
 
 	req := generation.GenerateRequest{

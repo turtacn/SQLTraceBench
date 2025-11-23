@@ -12,14 +12,11 @@ func TestZipfSampler(t *testing.T) {
 	// Initialize Zipf distribution with Skew=1.1
 	sampler := services.NewSeededZipfSampler(42, 1.1)
 
-	// Create a distribution with 10 values
-	dist := models.NewValueDistribution()
-	values := []string{"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
-	for _, v := range values {
-		// Observations don't matter for ZipfSampler, only the list of values
-		dist.Values = append(dist.Values, v)
-		dist.Frequencies = append(dist.Frequencies, 1)
-		dist.Total++
+	// Create a parameter model with 10 values
+	values := []interface{}{"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
+	dist := &models.ParameterModel{
+		TopValues:   values,
+		Cardinality: 10,
 	}
 
 	// Sample 10,000 times
@@ -30,29 +27,23 @@ func TestZipfSampler(t *testing.T) {
 		counts[val.(string)]++
 	}
 
-	// Verify high frequency elements appear significantly more often than low frequency elements.
-	// Zipfian distribution: rank 1 (v1) should have highest frequency, rank N (v10) lowest.
-	// Since ZipfSampler generates indices [0, n-1], index 0 corresponds to v1.
-
 	t.Logf("Counts: %v", counts)
 
 	assert.True(t, counts["v1"] > counts["v2"], "v1 should occur more than v2")
 	assert.True(t, counts["v2"] > counts["v3"], "v2 should occur more than v3")
 	assert.True(t, counts["v1"] > counts["v10"], "v1 should occur significantly more than v10")
 
-	// Check if it follows power law roughly
-	// v1 should be dominant.
 	assert.Greater(t, counts["v1"], 2000, "v1 should have significant portion of samples")
 }
 
 func TestWeightedSampler(t *testing.T) {
 	sampler := services.NewSeededWeightedRandomSampler(42)
 
-	dist := models.NewValueDistribution()
-	dist.AddObservation("A")
-	dist.AddObservation("A")
-	dist.AddObservation("A") // 3 A's
-	dist.AddObservation("B") // 1 B
+	dist := &models.ParameterModel{
+		TopValues:      []interface{}{"A", "B"},
+		TopFrequencies: []int{3, 1},
+		Cardinality:    2,
+	}
 
 	counts := make(map[string]int)
 	for i := 0; i < 1000; i++ {

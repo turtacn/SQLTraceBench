@@ -1,0 +1,11 @@
+
+benchmark:
+  models:
+    - name: "markov_v1"
+  test_scenarios:
+    - name: "test_load"
+      trace_count: 10
+      concurrency: 2
+  output:
+    report_dir: "./test_reports"
+    export_prometheus: false
