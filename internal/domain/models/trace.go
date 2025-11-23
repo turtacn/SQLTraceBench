@@ -5,9 +5,10 @@ import "time"
 
 // SQLTrace represents a single SQL query event captured from a trace.
 type SQLTrace struct {
-	Query     string
-	Timestamp time.Time
-	Latency   time.Duration
+	Query      string
+	Timestamp  time.Time
+	Latency    time.Duration
+	Parameters map[string]interface{}
 }
 
 // TraceCollection holds a collection of SQLTraces.

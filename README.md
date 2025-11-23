@@ -36,6 +36,7 @@ SQLTraceBench addresses these pain points by:
 ✅ **Automated Cross-Database Schema Conversion** - Transform schemas between StarRocks, ClickHouse, Doris, MySQL, PostgreSQL, and more  
 ✅ **Intelligent SQL Trace Analysis** - Parse real SQL traces and extract meaningful patterns  
 ✅ **Template-Based Workload Generation** - Convert queries into parameterized templates with realistic data distributions  
+✅ **Advanced Parameter Modeling** - (New in P2) Inference of parameter types, Hotspot detection, and Temporal pattern extraction.
 ✅ **Controllable Load Simulation** - Adjust QPS, concurrency, hotspot ratios, and selectivity parameters  
 ✅ **Comprehensive Validation Framework** - Compare generated benchmarks against original traces with detailed deviation analysis
 
@@ -49,7 +50,11 @@ SQLTraceBench addresses these pain points by:
 - **Load Control**: Fine-tune QPS, concurrency, and hotspot distribution
 - **Validation & Reporting**: Comprehensive comparison between original and synthetic workloads
 
-### Advanced Features
+### Advanced Features (Phase 2)
+- **Parameter Type Inference**: Automatic detection of INT, STRING, DATETIME types.
+- **Hotspot Detection**: Identify and model frequently accessed data (Hotspots).
+- **Temporal Pattern Extraction**: Model query arrival rates over time (e.g., daily peaks).
+- **Enhanced Sampling**: Zipfian distribution with Hotspot Injection and Temporal-weighted sampling.
 - **Plugin Architecture**: Extensible framework for adding new database support
 - **Data Synthesis**: Generate realistic datasets based on actual data characteristics
 - **Performance Metrics**: Track QPS distribution, latency percentiles, row counts, and hotspot coverage
@@ -138,6 +143,16 @@ sql_trace_bench run \
   --db-config ./config/clickhouse.yaml \
   --validate \
   --report ./results/
+```
+
+### Advanced Generation (Phase 2)
+
+```bash
+# Enable hotspot detection and temporal modeling
+sql_trace_bench generate \
+  --traces production.log \
+  --config configs/generation.yaml \
+  --output synthetic_load.jsonl
 ```
 
 ### Example Input/Output

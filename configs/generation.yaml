@@ -1,0 +1,11 @@
+# Workload Generation Configuration
+
+# Hotspot detection settings
+hotspot_threshold: 0.05  # Top 5% frequency threshold for identifying hotspots
+
+# Temporal pattern settings
+temporal_window: 1h      # Time window for temporal pattern extraction (e.g., 1h, 10m)
+
+# Sampling settings
+zipf_alpha: 1.1          # Zipfian skew parameter (s > 1)
+hotspot_injection_prob: 0.3 # Probability of injecting a hotspot value during generation
