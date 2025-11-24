@@ -101,7 +101,7 @@ func (r *Registry) LoadPlugin(path string) error {
 	}
 
 	// Request the plugin
-	raw, err := rpcClient.Dispense("database_grpc")
+	raw, err := rpcClient.Dispense("database_plugin")
 	if err != nil {
 		client.Kill()
 		return fmt.Errorf("failed to dispense plugin: %w", err)

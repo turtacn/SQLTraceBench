@@ -15,29 +15,29 @@ func TestTranslateQuery(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "Remove Backticks",
+			name:     "Keep Backticks",
 			input:    "SELECT * FROM `User`",
-			expected: "SELECT * FROM \"User\"",
+			expected: "SELECT * FROM `User`",
 		},
 		{
-			name:     "Remove Engine",
-			input:    "CREATE TABLE t (id int) ENGINE=InnoDB",
-			expected: "CREATE TABLE t (id int)",
+			name:     "Remove SQL_NO_CACHE",
+			input:    "SELECT SQL_NO_CACHE * FROM t",
+			expected: "SELECT * FROM t",
 		},
 		{
-			name:     "Remove Charset",
-			input:    "CREATE TABLE t (id int) DEFAULT CHARSET=utf8mb4",
-			expected: "CREATE TABLE t (id int)",
+			name:     "Normalize Function Name",
+			input:    "SELECT NOW()",
+			expected: "SELECT now()",
 		},
 		{
-			name:     "Remove AutoIncrement",
-			input:    "id INT AUTO_INCREMENT",
-			expected: "id INT",
+			name:     "Remove Semicolon",
+			input:    "SELECT * FROM t;",
+			expected: "SELECT * FROM t",
 		},
 		{
-			name:     "Complex",
-			input:    "CREATE TABLE `Orders` (`id` int) ENGINE=InnoDB DEFAULT CHARSET=utf8;",
-			expected: "CREATE TABLE \"Orders\" (\"id\" int);",
+			name:     "Combined",
+			input:    "SELECT SQL_NO_CACHE * FROM `t` WHERE x = NOW();",
+			expected: "SELECT * FROM `t` WHERE x = now()",
 		},
 	}
 

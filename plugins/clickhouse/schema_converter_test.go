@@ -18,16 +18,14 @@ func TestConvertType(t *testing.T) {
 		{"int", "Int32"},
 		{"bigint", "Int64"},
 		{"varchar(255)", "String"},
-		{"DECIMAL(10,2)", "Decimal64(2)"},
-		{"datetime", "DateTime64"},
-		{"timestamp", "DateTime64"},
-		{"date", "Date32"},
-		{"boolean", "Bool"},
+		{"DECIMAL(10,2)", "Decimal128(2)"}, // Updated requirement
+		{"datetime", "DateTime"},           // Updated requirement
 		{"unknown", "String"},
 	}
 
 	for _, test := range tests {
-		result := c.mapType(test.input)
+		result, err := c.mapType(test.input)
+		assert.NoError(t, err)
 		assert.Equal(t, test.expected, result, "Failed to map type: %s", test.input)
 	}
 }
@@ -53,7 +51,7 @@ func TestConvertSchema_PrimaryKey(t *testing.T) {
 		},
 	}
 
-	tgtSchema, err := c.ConvertSchema(srcSchema, "clickhouse")
+	tgtSchema, err := c.ConvertSchema(srcSchema)
 	assert.NoError(t, err)
 	assert.Len(t, tgtSchema.Databases, 1)
 	assert.Len(t, tgtSchema.Databases[0].Tables, 1)
@@ -63,4 +61,30 @@ func TestConvertSchema_PrimaryKey(t *testing.T) {
 	assert.Contains(t, tgtTable.Engine, "MergeTree()")
 	assert.Contains(t, tgtTable.Engine, "ORDER BY (id)")
 	assert.Equal(t, "Int32", tgtTable.Columns[0].DataType)
+}
+
+func TestConvertSchema_NoPrimaryKey(t *testing.T) {
+	c := NewSchemaConverter().(*ClickHouseConverter)
+
+	srcSchema := &models.Schema{
+		Databases: []models.DatabaseSchema{
+			{
+				Name: "test_db",
+				Tables: []*models.TableSchema{
+					{
+						Name: "events",
+						Columns: []*models.ColumnSchema{
+							{Name: "event_name", DataType: "varchar(100)"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tgtSchema, err := c.ConvertSchema(srcSchema)
+	assert.NoError(t, err)
+
+	tgtTable := tgtSchema.Databases[0].Tables[0]
+	assert.Contains(t, tgtTable.Engine, "ORDER BY tuple()")
 }

@@ -15,9 +15,10 @@ type DatabaseSchema struct {
 type TableSchema struct {
 	Name    string                  `json:"name"`
 	Columns []*ColumnSchema         `json:"columns"`
-	PK      []string                `json:"pk"` // Primary Key columns
-	Indexes map[string]*IndexSchema `json:"indexes"`
-	Engine  string                  `json:"engine,omitempty"` // e.g., "MergeTree() ORDER BY ..."
+	PK        []string                `json:"pk"` // Primary Key columns
+	Indexes   map[string]*IndexSchema `json:"indexes"`
+	Engine    string                  `json:"engine,omitempty"` // e.g., "MergeTree() ORDER BY ..."
+	CreateSQL string                  `json:"create_sql,omitempty"`
 }
 
 // ColumnSchema represents a single column in a database table.

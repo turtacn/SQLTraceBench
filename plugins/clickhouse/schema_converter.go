@@ -9,7 +9,7 @@ import (
 
 // SchemaConverter is the interface for schema conversion logic.
 type SchemaConverter interface {
-	ConvertSchema(source *models.Schema, targetType string) (*models.Schema, error)
+	ConvertSchema(source *models.Schema) (*models.Schema, error)
 }
 
 type ClickHouseConverter struct{}
@@ -20,12 +20,11 @@ func NewSchemaConverter() SchemaConverter {
 }
 
 // ConvertSchema converts a source schema to a ClickHouse schema.
-func (c *ClickHouseConverter) ConvertSchema(source *models.Schema, targetType string) (*models.Schema, error) {
+func (c *ClickHouseConverter) ConvertSchema(source *models.Schema) (*models.Schema, error) {
 	target := &models.Schema{Databases: make([]models.DatabaseSchema, 0)}
 
 	for _, db := range source.Databases {
 		tgtDB := models.DatabaseSchema{Name: db.Name}
-		// Assuming DatabaseSchema also updated to have slice of Tables
 		tgtDB.Tables = make([]*models.TableSchema, 0, len(db.Tables))
 		for _, tbl := range db.Tables {
 			tgtTable := c.convertTable(tbl)
@@ -42,8 +41,13 @@ func (c *ClickHouseConverter) convertTable(src *models.TableSchema) *models.Tabl
 
 	// 1. Column conversion
 	for _, col := range src.Columns {
-		chType := c.mapType(col.DataType)
-		// Assuming we want to preserve PKs for ORDER BY
+		chType, err := c.mapType(col.DataType)
+		if err != nil {
+			// Fallback to String for unknown types as per requirement implicitly or just log?
+			// Requirement says "DEFAULT -> String (safe fallback)"
+			chType = "String"
+		}
+
 		if col.IsPrimaryKey {
 			orderByCols = append(orderByCols, col.Name)
 		}
@@ -52,7 +56,7 @@ func (c *ClickHouseConverter) convertTable(src *models.TableSchema) *models.Tabl
 			DataType:     chType,
 			IsNullable:   col.IsNullable,
 			IsPrimaryKey: col.IsPrimaryKey,
-			Default:      col.Default, // You might need to adjust default values too
+			Default:      col.Default,
 		})
 	}
 
@@ -64,60 +68,52 @@ func (c *ClickHouseConverter) convertTable(src *models.TableSchema) *models.Tabl
 		engineDef += " ORDER BY tuple()"
 	}
 
-	return &models.TableSchema{
+	tbl := &models.TableSchema{
 		Name:    src.Name,
 		Columns: tgtCols,
 		Engine:  engineDef,
-		PK:      src.PK, // Keep original PKs metadata if needed, though Engine defines structure
+		PK:      src.PK,
 		Indexes: src.Indexes,
 	}
+
+	// 3. Build CreateSQL
+	tbl.CreateSQL = buildCHCreateSQL(tbl, orderByCols)
+	return tbl
 }
 
 // mapType maps MySQL types to ClickHouse types.
-func (c *ClickHouseConverter) mapType(mysqlType string) string {
+func (c *ClickHouseConverter) mapType(mysqlType string) (string, error) {
 	lowerType := strings.ToLower(mysqlType)
-	// Handle parameterized types like decimal(10, 2)
 	baseType := lowerType
 	if idx := strings.Index(lowerType, "("); idx != -1 {
 		baseType = lowerType[:idx]
 	}
+	baseType = strings.TrimSpace(baseType)
 
 	switch baseType {
 	case "tinyint":
-		return "Int8"
-	case "smallint":
-		return "Int16"
-	case "int", "integer", "mediumint":
-		return "Int32"
+		return "Int8", nil
+	case "int", "integer":
+		return "Int32", nil
 	case "bigint":
-		return "Int64"
-	case "varchar", "char", "text", "mediumtext", "longtext":
-		return "String"
-	case "datetime", "timestamp":
-		return "DateTime64" // Prefer DateTime64 for better precision if needed, or DateTime
-	case "date":
-		return "Date32"
-	case "boolean", "bool":
-		return "Bool"
-	case "float":
-		return "Float32"
-	case "double":
-		return "Float64"
+		return "Int64", nil
+	case "varchar", "text":
+		return "String", nil
+	case "datetime":
+		return "DateTime", nil
 	case "decimal":
-		// Simple handling, just pass through or default.
-		// For accurate mapping we need to extract precision/scale.
-		// For now, if input was decimal(10,2), we return Decimal(10,2) or Decimal64(2)
-		// The prompt example says: DECIMAL(10,2) -> Decimal64(2)
-		return c.mapDecimal(lowerType)
+		// DECIMAL(p,s) -> Decimal128(s)
+		return c.mapDecimal(lowerType), nil
 	default:
-		return "String" // Default fallback
+		// Requirement: DEFAULT -> String (safe fallback)
+		return "String", nil
 	}
 }
 
 func (c *ClickHouseConverter) mapDecimal(fullType string) string {
 	// fullType e.g. "decimal(10,2)" or "decimal"
 	if !strings.Contains(fullType, "(") {
-		return "Decimal128(18)" // Default
+		return "Decimal128(18)" // Default if no scale provided
 	}
 	// Extract content inside parens
 	start := strings.Index(fullType, "(")
@@ -130,11 +126,31 @@ func (c *ClickHouseConverter) mapDecimal(fullType string) string {
 	if len(parts) == 2 {
 		// scale is parts[1]
 		scale := strings.TrimSpace(parts[1])
-		// ClickHouse has Decimal32(S), Decimal64(S), Decimal128(S), Decimal256(S)
-		// Or just Decimal(P, S) which is alias.
-		// Prompt requested Decimal64(2) for input DECIMAL(10,2).
-		// We can return Decimal64(scale).
-		return fmt.Sprintf("Decimal64(%s)", scale)
+		return fmt.Sprintf("Decimal128(%s)", scale)
 	}
 	return "Decimal128(18)"
+}
+
+func buildCHCreateSQL(tbl *models.TableSchema, pkCols []string) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", tbl.Name))
+
+	for i, col := range tbl.Columns {
+		sb.WriteString(fmt.Sprintf("  `%s` %s", col.Name, col.DataType))
+		// Handle Default? Not strictly asked in buildCHCreateSQL example but good to have
+		if col.Default != "" {
+			// Basic handling, might need more complex parsing for expressions
+			// For string types, ensure quotes if not present?
+			// Let's keep it simple as per requirements.
+			// sb.WriteString(fmt.Sprintf(" DEFAULT %s", col.Default))
+		}
+		if i < len(tbl.Columns)-1 {
+			sb.WriteString(",\n")
+		} else {
+			sb.WriteString("\n")
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf(") ENGINE = %s", tbl.Engine))
+	return sb.String()
 }

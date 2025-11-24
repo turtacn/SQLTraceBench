@@ -8,14 +8,12 @@ import (
 )
 
 func main() {
-	// Initialize the actual business logic
-	// clickhouse.New() returns plugins.Plugin (impl in plugins/clickhouse/plugin.go)
-	realImpl := clickhouse.New()
+	impl := clickhouse.New() // Instantiate business logic
 
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: pkg_plugin.HandshakeConfig,
 		Plugins: map[string]plugin.Plugin{
-			"database_grpc": &grpc_impl.GRPCPluginImpl{Impl: realImpl},
+			"database_plugin": &grpc_impl.GRPCPluginImpl{Impl: impl},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
