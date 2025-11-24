@@ -30,8 +30,16 @@ func TestE2EPipelineSmoke(t *testing.T) {
 	sampler := services.NewSeededWeightedRandomSampler(123)
 	workloadService := services.NewWorkloadService(sampler)
 	pm := services.NewParameterService().BuildModel(tc, ts)
-	wl, err := workloadService.GenerateWorkload(ts, pm, 1)
+
+	// Updated GenerateWorkload call
+	config := services.GenerationConfig{
+		TotalQueries: 2,
+		ScaleFactor:  1.0,
+	}
+	wl, err := workloadService.GenerateWorkload(context.Background(), ts, pm, config)
+
 	assert.NoError(t, err)
+	// We asked for 2 total queries
 	assert.Len(t, wl.Queries, 2, "workload should have 2 queries")
 
 	// 4. Run the benchmark twice

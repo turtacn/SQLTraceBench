@@ -1,12 +1,22 @@
 package services
 
 import (
+	"context"
+	"math/rand"
+	"time"
+
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 )
 
+// GenerationConfig holds configuration for workload generation.
+type GenerationConfig struct {
+	TotalQueries int
+	ScaleFactor  float64
+}
+
 // WorkloadService is responsible for generating a benchmark workload.
 type WorkloadService struct {
-	sampler Sampler
+	sampler Sampler // Kept for backward compatibility if needed, but primary logic moves to Synthesizer
 }
 
 // NewWorkloadService creates a new WorkloadService.
@@ -15,57 +25,68 @@ func NewWorkloadService(sampler Sampler) *WorkloadService {
 }
 
 // GenerateWorkload creates a BenchmarkWorkload from SQL templates and a parameter model.
+// It uses the Synthesizer for "Smart Generation".
 func (s *WorkloadService) GenerateWorkload(
+	ctx context.Context,
 	templates []models.SQLTemplate,
 	pm *models.WorkloadParameterModel,
-	n int,
+	config GenerationConfig,
 ) (*models.BenchmarkWorkload, error) {
 	var wl models.BenchmarkWorkload
 
+	// 1. Initialize Synthesizer
+	synthesizer := NewSynthesizer(pm)
+
+	// 2. Prepare Template Selector (Weighted Random)
+	var totalWeight int
+	var weightedTemplates []models.SQLTemplate
+
 	for _, t := range templates {
-		if len(t.Parameters) == 0 {
-			for i := 0; i < n; i++ {
-				wl.Queries = append(wl.Queries, models.QueryWithArgs{
-					Query: t.RawSQL,
-					Args:  []interface{}{},
-				})
+		w := t.Weight
+		if w <= 0 {
+			w = 1 // Default weight
+		}
+		t.Weight = w // update locally
+		totalWeight += w
+		weightedTemplates = append(weightedTemplates, t)
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// 3. Generation Loop
+	targetCount := config.TotalQueries
+	if targetCount <= 0 {
+		return &wl, nil
+	}
+
+	wl.Queries = make([]models.QueryWithArgs, 0, targetCount)
+
+	for i := 0; i < targetCount; i++ {
+		// Select Template
+		var selectedTmpl *models.SQLTemplate
+		r := rng.Intn(totalWeight)
+		currentW := 0
+		for idx := range weightedTemplates {
+			currentW += weightedTemplates[idx].Weight
+			if r < currentW {
+				selectedTmpl = &weightedTemplates[idx]
+				break
 			}
+		}
+		if selectedTmpl == nil {
+			selectedTmpl = &weightedTemplates[len(weightedTemplates)-1]
+		}
+
+		// Synthesize Parameters
+		filledSQL, _, err := synthesizer.FillParameters(selectedTmpl)
+		if err != nil {
 			continue
 		}
 
-		templateParams, ok := pm.TemplateParameters[t.GroupKey]
-		if !ok {
-			continue
-		}
-
-		for i := 0; i < n; i++ {
-			params := make(map[string]interface{})
-			for _, paramName := range t.Parameters {
-				dist, ok := templateParams[paramName]
-				if !ok {
-					params[paramName] = "default"
-					continue
-				}
-
-				sampledValue, err := s.sampler.Sample(dist)
-				if err != nil {
-					if len(dist.TopValues) > 0 {
-						params[paramName] = dist.TopValues[0]
-					} else {
-						params[paramName] = "default"
-					}
-					continue
-				}
-
-				params[paramName] = sampledValue
-			}
-
-			queryWithArgs, err := t.GenerateQuery(params)
-			if err != nil {
-				continue
-			}
-			wl.Queries = append(wl.Queries, queryWithArgs)
-		}
+		wl.Queries = append(wl.Queries, models.QueryWithArgs{
+			Query: filledSQL,
+			Args:  nil, // Use inlined values
+		})
 	}
 
 	return &wl, nil

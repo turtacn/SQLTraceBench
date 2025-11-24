@@ -62,9 +62,20 @@ func (s *DefaultService) GenerateWorkload(ctx context.Context, tplPath string, n
 		return nil, err
 	}
 
+	// NOTE: P04 Implementation Assumption
+	// Ideally, we should load a pre-computed WorkloadParameterModel here (e.g., from a JSON file).
+	// Currently, the interface only accepts the template path.
+	// We build a model from scratch, which implies using default distributions if no trace data is supplied.
+	// In a full integration, `BuildModel` should be called with the original traces that generated these templates.
+
 	pm := s.paramSvc.BuildModel(models.TraceCollection{}, templates)
 
-	wl, err := s.workloadSvc.GenerateWorkload(templates, pm, n)
+	config := services.GenerationConfig{
+		TotalQueries: n,
+		ScaleFactor:  1.0,
+	}
+
+	wl, err := s.workloadSvc.GenerateWorkload(ctx, templates, pm, config)
 	if err != nil {
 		return nil, err
 	}
@@ -72,30 +83,22 @@ func (s *DefaultService) GenerateWorkload(ctx context.Context, tplPath string, n
 	return wl, nil
 }
 
-type valFreq struct {
-	val  interface{}
-	freq int
-}
-
-// Generate implements the enhanced generation logic for Phase 2.
-// Note: This needs refactoring to align with Phase 3 changes (WorkloadParameterModel),
-// but for now we adapt it to compile and run with basic functionality.
+// Generate implements the enhanced generation logic.
+// This is kept for compatibility with existing tests/tools but should eventually
+// use the Synthesizer approach if possible.
 func (s *DefaultService) Generate(ctx context.Context, req GenerateRequest) ([]models.SQLTrace, error) {
 	if len(req.SourceTraces) == 0 {
 		return nil, fmt.Errorf("no source traces provided for generation")
 	}
 
 	// 1. Analyze parameters to get distributions
-	analyzer := services.NewParameterAnalyzer() // Use constructor
-
-	// Analyze now returns map[string]*models.ParameterModel
+	analyzer := services.NewParameterAnalyzer()
 	paramStats := analyzer.Analyze(req.SourceTraces)
 
 	// If Hotspots not provided, extract them from stats
 	if req.HotspotValues == nil {
 		req.HotspotValues = make(map[string][]interface{})
 		for paramName, model := range paramStats {
-			// Extract TopValues as hotspots
 			req.HotspotValues[paramName] = model.TopValues
 		}
 	}
@@ -113,6 +116,7 @@ func (s *DefaultService) Generate(ctx context.Context, req GenerateRequest) ([]m
 		temporalSampler = samplers.NewTemporalSampler(req.TemporalPattern, minTime)
 	}
 
+	// Helper to get sampler
 	paramSamplers := make(map[string]*samplers.ZipfSampler)
 	importServicesZipf := func(name string) *samplers.ZipfSampler {
 		if s, ok := paramSamplers[name]; ok {
@@ -125,19 +129,11 @@ func (s *DefaultService) Generate(ctx context.Context, req GenerateRequest) ([]m
 		return s
 	}
 
-	// Convert models.ParameterModel to ValueDistribution for legacy ZipfSampler in samplers package?
-	// The samplers package ZipfSampler likely expects models.ValueDistribution.
-	// But models.ValueDistribution is deprecated/modified.
-	// Let's check `internal/infrastructure/samplers/zipf_sampler.go`.
-	// If it uses models.ValueDistribution, we need to adapt.
-	// For now, I will construct a ValueDistribution from ParameterModel.TopValues.
-
 	paramDists := make(map[string]*models.ValueDistribution)
 	for name, model := range paramStats {
 		dist := models.NewValueDistribution()
 		// Reconstruct from TopValues/TopFrequencies
 		if len(model.TopFrequencies) > 0 {
-			// We have frequencies
 			dist.Values = make([]interface{}, len(model.TopValues))
 			dist.Frequencies = make([]int, len(model.TopFrequencies))
 			copy(dist.Values, model.TopValues)
@@ -146,12 +142,10 @@ func (s *DefaultService) Generate(ctx context.Context, req GenerateRequest) ([]m
 				dist.Total += f
 			}
 		} else {
-			// Fake it
 			dist.Values = model.TopValues
 			dist.Frequencies = make([]int, len(model.TopValues))
-			// Assume sorted descending?
 			for i := range dist.Values {
-				dist.Frequencies[i] = len(dist.Values) - i // Mock counts
+				dist.Frequencies[i] = len(dist.Values) - i
 				dist.Total += dist.Frequencies[i]
 			}
 		}

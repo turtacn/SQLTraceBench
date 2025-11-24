@@ -1,0 +1,18 @@
+# Configuration for Workload Generation Phase 4
+generation:
+  # Global scale factor for workload volume
+  scale_factor: 1.0
+
+  # Target queries per second (optional, used if generating for duration)
+  target_qps: 1000
+
+  # Total queries to generate (if not using QPS/Duration)
+  total_queries: 10000
+
+  # Concurrency settings
+  concurrency: 10
+
+  # Default distribution parameters if not inferred
+  defaults:
+    distribution: "zipfian"
+    zipf_s: 1.1
