@@ -1,0 +1,23 @@
+[
+    {
+        "query": "SELECT * FROM orders WHERE customer_id = :customer_id",
+        "timestamp": "2025-11-24T22:45:00Z",
+        "parameters": {
+            ":customer_id": 1
+        }
+    },
+    {
+        "query": "SELECT * FROM orders WHERE customer_id = :customer_id",
+        "timestamp": "2025-11-24T22:45:01Z",
+        "parameters": {
+            ":customer_id": 2
+        }
+    },
+    {
+        "query": "SELECT * FROM products WHERE sku = :sku",
+        "timestamp": "2025-11-24T22:45:02Z",
+        "parameters": {
+            ":sku": "ABC"
+        }
+    }
+]
