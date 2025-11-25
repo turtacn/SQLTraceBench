@@ -1,0 +1,64 @@
+{
+  "queries": [
+    {
+      "query": "SELECT * FROM products WHERE sku = :sku",
+      "args": [
+        "ABC"
+      ]
+    },
+    {
+      "query": "SELECT * FROM products WHERE sku = :sku",
+      "args": [
+        "ABC"
+      ]
+    },
+    {
+      "query": "SELECT * FROM orders WHERE customer_id = :customer_id",
+      "args": [
+        1
+      ]
+    },
+    {
+      "query": "SELECT * FROM products WHERE sku = :sku",
+      "args": [
+        "ABC"
+      ]
+    },
+    {
+      "query": "SELECT * FROM orders WHERE customer_id = :customer_id",
+      "args": [
+        2
+      ]
+    },
+    {
+      "query": "SELECT * FROM products WHERE sku = :sku",
+      "args": [
+        "ABC"
+      ]
+    },
+    {
+      "query": "SELECT * FROM orders WHERE customer_id = :customer_id",
+      "args": [
+        1
+      ]
+    },
+    {
+      "query": "SELECT * FROM products WHERE sku = :sku",
+      "args": [
+        "ABC"
+      ]
+    },
+    {
+      "query": "SELECT * FROM products WHERE sku = :sku",
+      "args": [
+        "ABC"
+      ]
+    },
+    {
+      "query": "SELECT * FROM orders WHERE customer_id = :customer_id",
+      "args": [
+        1
+      ]
+    }
+  ]
+}
