@@ -27,7 +27,7 @@ func NewRoot() *Root {
 	parser := parsers.NewAntlrParser()
 	return &Root{
 		Parser:     parser,
-		Conversion: conversion.NewService(parser),
+		Conversion: conversion.NewService(parser, nil), // Use global registry
 		Execution:  execution.NewService(),
 		Generation: generation.NewService(),
 		Validation: validation.NewService(),

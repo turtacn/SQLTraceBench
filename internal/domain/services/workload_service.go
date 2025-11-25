@@ -59,6 +59,11 @@ func (s *WorkloadService) GenerateWorkload(
 		return &wl, nil
 	}
 
+	if totalWeight <= 0 {
+		// Fallback if no weights are valid (should not happen with weight adjustment above but safety check)
+		return &wl, nil
+	}
+
 	wl.Queries = make([]models.QueryWithArgs, 0, targetCount)
 
 	for i := 0; i < targetCount; i++ {

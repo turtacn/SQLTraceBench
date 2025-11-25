@@ -35,6 +35,13 @@ func NewRegistry() *Registry {
 	}
 }
 
+// Register adds a plugin instance directly to the registry.
+// Useful for testing or in-process plugins.
+func (r *Registry) Register(p plugins.Plugin) {
+	r.plugins[p.Name()] = p
+	// Also register to legacy global if needed, but we keep it clean here.
+}
+
 // LoadPluginsFromDir scans the directory for plugin binaries and loads them.
 func (r *Registry) LoadPluginsFromDir(dir string) error {
 	files, err := os.ReadDir(dir)

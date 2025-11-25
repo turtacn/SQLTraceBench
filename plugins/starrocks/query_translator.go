@@ -23,6 +23,10 @@ func (t *StarRocksTranslator) Translate(sql string) (string, error) {
 	reForceIndex := regexp.MustCompile(`(?i)\bFORCE\s+INDEX\s*\([^\)]+\)`)
 	sql = reForceIndex.ReplaceAllString(sql, "")
 
+	// Normalizing NOW() to lower case as per best practice (although StarRocks supports both)
+	reNow := regexp.MustCompile(`(?i)\bNOW\(\)`)
+	sql = reNow.ReplaceAllString(sql, "now()")
+
 	// Clean up extra whitespace
 	reSpaces := regexp.MustCompile(`\s+`)
 	sql = reSpaces.ReplaceAllString(sql, " ")

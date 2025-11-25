@@ -11,6 +11,11 @@ import (
 // StarRocksConverter handles schema conversion from generic/MySQL to StarRocks.
 type StarRocksConverter struct{}
 
+// NewSchemaConverter creates a new instance of StarRocksConverter.
+func NewSchemaConverter() *StarRocksConverter {
+	return &StarRocksConverter{}
+}
+
 // ConvertSchema converts the source schema to a StarRocks compatible schema.
 func (c *StarRocksConverter) ConvertSchema(source *models.Schema) (*models.Schema, error) {
 	newSchema := &models.Schema{
@@ -51,7 +56,6 @@ func (c *StarRocksConverter) convertTable(tbl *models.TableSchema) *models.Table
 	// 2. Construct Engine and Distribution
 	// Default to OLAP engine
 	// Use DUPLICATE KEY model by default as requested
-	// DISTRIBUTED BY HASH(pk)
 
 	var distKeys []string
 	if len(tbl.PK) > 0 {
@@ -61,15 +65,6 @@ func (c *StarRocksConverter) convertTable(tbl *models.TableSchema) *models.Table
 		distKeys = []string{newTbl.Columns[0].Name}
 	}
 
-	// Construct the Engine string to be appended to CREATE TABLE
-	// Format: OLAP DUPLICATE KEY(...) DISTRIBUTED BY HASH(...) BUCKETS 10 PROPERTIES(...)
-	// We will simplify to just the Engine type and keys. The DDL generator will need to handle properties if needed,
-	// or we put everything here.
-
-	// Example result: "OLAP DUPLICATE KEY(`id`) DISTRIBUTED BY HASH(`id`)"
-
-	engineParts := []string{"OLAP"}
-
 	// Helper to quote identifiers
 	quote := func(keys []string) string {
 		quoted := make([]string, len(keys))
@@ -78,6 +73,11 @@ func (c *StarRocksConverter) convertTable(tbl *models.TableSchema) *models.Table
 		}
 		return strings.Join(quoted, ", ")
 	}
+
+	// Format: OLAP DUPLICATE KEY(...) DISTRIBUTED BY HASH(...) BUCKETS 10 PROPERTIES(...)
+	// Example result: "OLAP DUPLICATE KEY(`id`) DISTRIBUTED BY HASH(`id`)"
+
+	engineParts := []string{"OLAP"}
 
 	// DUPLICATE KEY
 	// Using PK columns for duplicate key (sorting)
@@ -89,11 +89,14 @@ func (c *StarRocksConverter) convertTable(tbl *models.TableSchema) *models.Table
 	if len(distKeys) > 0 {
 		engineParts = append(engineParts, fmt.Sprintf("DISTRIBUTED BY HASH(%s)", quote(distKeys)))
 	} else {
-		// Minimal fallback
 		engineParts = append(engineParts, "DISTRIBUTED BY RANDOM")
 	}
 
+	// Add default properties if needed, e.g., replication_num = 1 for simple setup
+	// engineParts = append(engineParts, "PROPERTIES(\"replication_num\" = \"1\")")
+
 	newTbl.Engine = strings.Join(engineParts, " ")
+	newTbl.CreateSQL = c.generateCreateSQL(newTbl)
 
 	return newTbl
 }
@@ -123,7 +126,7 @@ func (c *StarRocksConverter) mapType(dataType string) string {
 	}
 
 	switch baseType {
-	case "TINYINT", "SMALLINT", "BIGINT", "DECIMAL", "DATE", "DATETIME":
+	case "TINYINT", "SMALLINT", "BIGINT", "LARGEINT", "DECIMAL", "DATE", "DATETIME":
 		// Keep as is, optionally preserving params
 		if params != "" {
 			return fmt.Sprintf("%s(%s)", baseType, params)
@@ -160,4 +163,23 @@ func (c *StarRocksConverter) mapType(dataType string) string {
 		}
 		return baseType
 	}
+}
+
+func (c *StarRocksConverter) generateCreateSQL(table *models.TableSchema) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("CREATE TABLE `%s` (\n", table.Name))
+	for i, col := range table.Columns {
+		sb.WriteString(fmt.Sprintf("  `%s` %s", col.Name, col.DataType))
+		if !col.IsNullable {
+			sb.WriteString(" NOT NULL")
+		} else {
+			sb.WriteString(" NULL")
+		}
+		if i < len(table.Columns)-1 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString(fmt.Sprintf(") ENGINE=%s;", table.Engine))
+	return sb.String()
 }
