@@ -11,7 +11,7 @@ import (
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 	"github.com/turtacn/SQLTraceBench/internal/infrastructure/parsers"
 	"github.com/turtacn/SQLTraceBench/pkg/utils"
-	"github.com/turtacn/SQLTraceBench/plugins/clickhouse"
+	"github.com/turtacn/SQLTraceBench/plugin_registry"
 )
 
 // ConvertRequest represents a request to convert a schema.
@@ -30,15 +30,24 @@ type Service interface {
 
 // DefaultService is the default implementation of the conversion service.
 type DefaultService struct {
-	templateSvc *services.TemplateService
-	parser      services.Parser
+	templateSvc    *services.TemplateService
+	parser         services.Parser
+	pluginRegistry *plugin_registry.Registry
 }
 
 // NewService creates a new DefaultService.
-func NewService(parser services.Parser) Service {
+// Note: If registry is not passed, we use the global one or create one.
+// To keep signature compatible if possible, or we assume caller updates.
+// For now, I'll use the GlobalRegistry if not passed via deps (but constructor here builds deps).
+// Better to inject it.
+func NewService(parser services.Parser, registry *plugin_registry.Registry) Service {
+	if registry == nil {
+		registry = plugin_registry.GlobalRegistry
+	}
 	return &DefaultService{
-		templateSvc: services.NewTemplateService(),
-		parser:      parser,
+		templateSvc:    services.NewTemplateService(),
+		parser:         parser,
+		pluginRegistry: registry,
 	}
 }
 
@@ -94,44 +103,29 @@ func (s *DefaultService) ConvertStreamingly(ctx context.Context, tracePath strin
 // ConvertSchemaFromFile reads a SQL schema file, converts it to the target dialect, and writes the result.
 func (s *DefaultService) ConvertSchemaFromFile(ctx context.Context, req ConvertRequest) error {
 	// 1. Parse Source
-	// For now, using a simple regex based parser since full parser is not available via parser interface yet.
-	// In a real scenario, s.parser should have a method like ParseDDL(path).
-	// We will simulate parsing logic here or add a helper.
 	srcSchema, err := parseDDLFile(req.SourceSchemaPath)
 	if err != nil {
 		return fmt.Errorf("failed to parse source schema: %w", err)
 	}
 
-	// 2. Get Plugin and Convert
-	// In the real system, this would use a plugin registry.
-	// For this phase, we directly use the ClickHouse plugin logic as requested,
-	// or simulated integration if Registry is not ready in this context.
-	// The prompt says: "Call plugin interface instead of local logic".
-	// "Integration with new gRPC plugin system" (P2-T4).
-	// Since I don't have the gRPC client code ready/visible in this context to call an external process,
-	// and the prompt for P2-T4 says "Call ConversionService... -> plugin.ConvertSchema()",
-	// I will instantiate the ClickHouseConverter directly for now as per "Core Domain Logic" focus,
-	// OR if the user expects me to implement the Plugin Registry integration now.
-	// Given "Phase 2: Core Domain Logic", and dependencies "P1 (gRPC Infrastructure)",
-	// I should probably pretend to use the plugin interface.
-	// However, without a running gRPC server/client setup in this file, I'll use the local implementation
-	// of the interface I just wrote in plugins/clickhouse/schema_converter.go.
-	// If the intention is to use the `plugins` package as a library here (which is common in Go unless using hashicorp/go-plugin strictly separated),
-	// I will use `clickhouse.NewSchemaConverter()`.
-
-	var converter clickhouse.SchemaConverter
-	if req.TargetDBType == "clickhouse" {
-		converter = clickhouse.NewSchemaConverter()
-	} else {
-		return fmt.Errorf("unsupported target db type: %s", req.TargetDBType)
+	// 2. Get Plugin from Registry
+	p, ok := s.pluginRegistry.Get(req.TargetDBType)
+	if !ok {
+		// Try loading from global if not found in local ref (though they should be same usually)
+		// Or try to lazy load?
+		// For now, assume it's preloaded or we error.
+		return fmt.Errorf("plugin not found for target db type: %s", req.TargetDBType)
 	}
 
-	tgtSchema, err := converter.ConvertSchema(srcSchema, req.TargetDBType)
+	// 3. Convert Schema
+	tgtSchema, err := p.ConvertSchema(srcSchema)
 	if err != nil {
-		return fmt.Errorf("failed to convert schema: %w", err)
+		return fmt.Errorf("plugin failed to convert schema: %w", err)
 	}
 
 	// 4. Generate DDL String & Write
+	// Note: We use the `CreateSQL` field if present (StarRocks plugin populates it),
+	// otherwise we fallback to generic generation.
 	ddl := s.generateDDL(tgtSchema)
 	return os.WriteFile(req.OutputPath, []byte(ddl), 0644)
 }
@@ -144,8 +138,6 @@ func parseDDLFile(path string) (*models.Schema, error) {
 	sql := string(content)
 
 	// Very simple regex parser for CREATE TABLE
-	// This is a placeholder for a real parser.
-	// It assumes simpler structure than full MySQL grammar.
 	schema := &models.Schema{
 		Databases: []models.DatabaseSchema{
 			{
@@ -191,10 +183,6 @@ func parseCreateTable(sql string) (*models.TableSchema, error) {
 	}
 	body := sql[start+1 : end]
 
-	// Extract columns
-	// Split by comma, but be careful with commas in parens (e.g. decimal(10,2))
-	// Simple split won't work perfectly, but for simple schemas it might.
-	// We need a balanced parenthesis splitter.
 	colsStr := splitWithBalance(body, ',')
 
 	var columns []*models.ColumnSchema
@@ -234,13 +222,6 @@ func parseCreateTable(sql string) (*models.TableSchema, error) {
 		}
 		name := strings.Trim(parts[0], "`\"")
 		dataType := parts[1]
-
-		// Handle type with parens like decimal(10,2) or varchar(255)
-		// If parts[1] doesn't have closing paren but has opening, we need to consume more parts?
-		// No, splitWithBalance already kept "decimal(10,2)" as one string if we did it right.
-		// But here parts is fields. "decimal(10,2)" is one field.
-		// "decimal (10, 2)" would be multiple.
-		// Let's rely on simple case.
 
 		isNullable := true
 		isPrimaryKey := false
@@ -305,24 +286,28 @@ func splitWithBalance(s string, sep rune) []string {
 func (s *DefaultService) generateDDL(schema *models.Schema) string {
 	var sb strings.Builder
 	for _, db := range schema.Databases {
-		// sb.WriteString(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s;\n", db.Name))
 		for _, table := range db.Tables {
+			// If CreateSQL is already populated by the plugin, use it.
+			if table.CreateSQL != "" {
+				sb.WriteString(table.CreateSQL)
+				sb.WriteString("\n\n")
+				continue
+			}
+
+			// Fallback generic generator (mostly for legacy/ClickHouse if not updated)
 			sb.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", table.Name))
 			for i, col := range table.Columns {
 				sb.WriteString(fmt.Sprintf("    %s %s", col.Name, col.DataType))
-				if !col.IsNullable {
-					// In ClickHouse, types are non-nullable by default unless Nullable() wrapper is used.
-					// But our converter probably mapped to "Int8" which is non-null. "Nullable(Int8)" is nullable.
-					// If the converter didn't wrap in Nullable(), and IsNullable is true, we might need to handle it here or in converter.
-					// The Prompt AC-1 says: "Int, Varchar...". AC-2: "Engine = MergeTree()".
-					// Let's assume the DataType in schema is the final type string.
-				}
 				if i < len(table.Columns)-1 {
 					sb.WriteString(",")
 				}
 				sb.WriteString("\n")
 			}
-			sb.WriteString(fmt.Sprintf(") ENGINE = %s;\n\n", table.Engine))
+			if table.Engine != "" {
+				sb.WriteString(fmt.Sprintf(") ENGINE = %s;\n\n", table.Engine))
+			} else {
+				sb.WriteString(");\n\n")
+			}
 		}
 	}
 	return sb.String()

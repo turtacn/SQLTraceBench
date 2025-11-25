@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 )
 
 type MockPlugin struct {
@@ -21,6 +22,10 @@ func (p *MockPlugin) Version() string {
 
 func (p *MockPlugin) TranslateQuery(sql string) (string, error) {
 	return sql, nil
+}
+
+func (p *MockPlugin) ConvertSchema(schema *models.Schema) (*models.Schema, error) {
+	return schema, nil
 }
 
 func TestRegistry(t *testing.T) {

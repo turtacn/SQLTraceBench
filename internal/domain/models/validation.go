@@ -10,7 +10,7 @@ type PerformanceMetrics struct {
 	// QueriesExecuted is the total number of queries run during the benchmark.
 	QueriesExecuted int64 `json:"queries_executed"`
 	// Errors is the total number of errors that occurred during the benchmark.
-	Errors int64 `json`
+	Errors int64 `json:"errors"`
 	// Duration is the total time taken for the benchmark to complete.
 	Duration time.Duration `json:"duration"`
 	// Latencies is a slice of all the individual query latencies.

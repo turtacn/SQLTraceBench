@@ -95,11 +95,21 @@ func (s *DefaultService) ValidateTrace(ctx context.Context, req ValidationReques
 			// For now let's try to check if we are in a subdirectory (e.g. tests/integration)
 			// or just fallback to a known location.
 			// Or better: Let the caller specify template path if needed.
-            // But `ValidationRequest` does not have it.
-            // Let's just try ../../web/templates/validation_report.html if original fails
-            if _, err := os.Stat("../../" + templatePath); err == nil {
-                templatePath = "../../" + templatePath
-            }
+			// But `ValidationRequest` does not have it.
+			// Let's just try ../../web/templates/validation_report.html if original fails
+			if _, err := os.Stat("../../" + templatePath); err == nil {
+				templatePath = "../../" + templatePath
+			} else if _, err := os.Stat("../../../" + templatePath); err == nil {
+				templatePath = "../../../" + templatePath
+			} else if _, err := os.Stat("../" + templatePath); err == nil {
+				// Fallback for cmd/ tests
+				templatePath = "../" + templatePath
+			} else {
+				// Fallback for unit tests in internal/app/validation
+				if _, err := os.Stat("../../../web/templates/validation_report.html"); err == nil {
+					templatePath = "../../../web/templates/validation_report.html"
+				}
+			}
 		}
 
 		htmlReporter := reporters.NewHTMLReporter(templatePath)

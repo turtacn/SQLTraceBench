@@ -17,13 +17,18 @@ type StarRocksPlugin struct {
 // New creates a new instance of StarRocksPlugin.
 func New() *StarRocksPlugin {
 	return &StarRocksPlugin{
-		converter:  &StarRocksConverter{},
+		converter:  NewSchemaConverter(),
 		translator: &StarRocksTranslator{},
 	}
 }
 
 // Name returns the name of the plugin.
 func (p *StarRocksPlugin) Name() string {
+	return PluginName
+}
+
+// GetName alias for interface compatibility
+func (p *StarRocksPlugin) GetName() string {
 	return PluginName
 }
 

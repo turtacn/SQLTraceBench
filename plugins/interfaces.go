@@ -1,12 +1,17 @@
 package plugins
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/turtacn/SQLTraceBench/internal/domain/models"
+)
 
 // Plugin is the interface that all plugins must implement.
 type Plugin interface {
 	Name() string
 	Version() string
 	TranslateQuery(sql string) (string, error)
+	ConvertSchema(schema *models.Schema) (*models.Schema, error)
 }
 
 // Registry holds a collection of all registered plugins.

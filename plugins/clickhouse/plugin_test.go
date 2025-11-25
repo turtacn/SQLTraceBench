@@ -12,7 +12,7 @@ func TestPlugin(t *testing.T) {
 
 	// Test the Name and Version methods.
 	assert.Equal(t, "clickhouse", p.Name())
-	assert.Equal(t, "1.0-mvp", p.Version())
+	assert.Equal(t, "1.0.0", p.Version())
 
 	// Test the TranslateQuery method.
 	translated, err := p.TranslateQuery("SELECT 1")

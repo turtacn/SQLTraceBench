@@ -22,7 +22,7 @@ type TestTemplate struct {
 func TestConvertFromFile_Integration(t *testing.T) {
 	// Setup: Create the service
 	parser := parsers.NewRegexParser() // Use the regex parser for this test
-	service := NewService(parser)
+	service := NewService(parser, nil)
 
 	// Setup: Define file paths
 	testdataDir := "testdata"
@@ -32,10 +32,10 @@ func TestConvertFromFile_Integration(t *testing.T) {
 	// Setup: Create test data files
 	os.MkdirAll(testdataDir, 0755)
 	traceContent := `
-{"query": "select * from users where id = :id"}
-{"query": "SELECT * FROM users WHERE id = :id "}
-{"query": "select * from orders"}
-{"query": "select * from users where id = :id"}
+{"query": "select * from users where id = :id", "timestamp": "2023-10-27T10:00:00Z"}
+{"query": "SELECT * FROM users WHERE id = :id ", "timestamp": "2023-10-27T10:00:01Z"}
+{"query": "select * from orders", "timestamp": "2023-10-27T10:00:02Z"}
+{"query": "select * from users where id = :id", "timestamp": "2023-10-27T10:00:03Z"}
 `
 	ioutil.WriteFile(tracePath, []byte(traceContent), 0644)
 

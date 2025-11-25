@@ -82,7 +82,7 @@ func runConvert(cmd *cobra.Command, args []string) error {
 		// Let's just use NewService with a mock or nil parser if allowed.
 		// `NewService(parser services.Parser)`.
 		// We can pass nil if ConvertStreamingly doesn't use it.
-		svc := conversion.NewService(nil)
+		svc := conversion.NewService(nil, nil)
 
 		count := 0
 		err = svc.ConvertStreamingly(cmd.Context(), tracePath, bufferSize, func(trace models.SQLTrace) error {
