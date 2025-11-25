@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -95,55 +94,33 @@ func NewSeededZipfSampler(seed int64, s float64) *ZipfSampler {
 }
 
 func (z *ZipfSampler) Sample(dist *models.ParameterModel) (interface{}, error) {
-	n := dist.Cardinality
-	if n == 0 {
-		// Try using TopValues length
-		n = len(dist.TopValues)
-	}
+	n := len(dist.TopValues)
 	if n == 0 {
 		return nil, types.NewError(types.ErrInvalidInput, "cannot sample from an empty distribution")
 	}
 
-	// If there's only one value, just return it.
-	if n == 1 && len(dist.TopValues) > 0 {
+	if n == 1 {
 		return dist.TopValues[0], nil
 	}
 
-	// Use model's S if available and valid (>1.001 to be safe for Zipf)
 	s := z.s
 	if dist.ZipfS > 1.001 {
 		s = dist.ZipfS
 	}
 
-	// Ensure S is > 1 for math/rand.Zipf
 	if s <= 1.0 {
 		s = 1.0001
 	}
 
-	// math/rand.Zipf requires imax (upper bound inclusive).
 	imax := uint64(n - 1)
-
 	gen := distributions.NewZipfGeneratorWithRand(z.rand, s, z.v, imax)
 	idx := gen.Uint64()
 
 	if idx >= uint64(n) {
-		idx = 0
+		// This should not happen if the generator is correct.
+		// Panicking during tests helps catch configuration errors.
+		panic("generated Zipf index is out of bounds")
 	}
 
-	// Map index to value
-	if int(idx) < len(dist.TopValues) {
-		return dist.TopValues[int(idx)], nil
-	}
-
-	// Synthetic Tail Generation
-	// If index is outside stored TopValues, generate a deterministic synthetic value.
-
-	if dist.DataType == "INT" {
-		// Return the index itself as the value (assuming ID-like behavior)
-		return int(idx), nil
-	}
-
-	// For STRING, generate a synthetic string
-	// "tail_<idx>" ensures uniqueness and follows the distribution rank
-	return fmt.Sprintf("tail_%d", idx), nil
+	return dist.TopValues[int(idx)], nil
 }

@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 )
@@ -66,21 +65,11 @@ func NewSynthesizer(workloadModel *models.WorkloadParameterModel) *Synthesizer {
 
 			switch model.DistType {
 			case models.DistZipfian:
-				sampler = &BoundZipfSampler{
-					sampler: zipfSvc,
-					model:   model,
-				}
+				sampler = &BoundZipfSampler{sampler: zipfSvc, model: model}
 			case models.DistUniform:
-				sampler = &BoundUniformSampler{
-					sampler: weightedSvc,
-					model:   model,
-				}
-			default:
-				// Default to Weighted/Empirical
-				sampler = &BoundWeightedSampler{
-					sampler: weightedSvc,
-					model:   model,
-				}
+				sampler = &BoundUniformSampler{sampler: weightedSvc, model: model}
+			default: // Fallback to empirical/weighted
+				sampler = &BoundWeightedSampler{sampler: weightedSvc, model: model}
 			}
 			s.samplers[groupKey][paramName] = sampler
 		}
@@ -89,46 +78,29 @@ func NewSynthesizer(workloadModel *models.WorkloadParameterModel) *Synthesizer {
 	return s
 }
 
-// FillParameters generates values for the template's parameters and returns the filled SQL.
-// It returns the SQL string with values inlined (for logging) and the list of arguments (for execution).
-func (s *Synthesizer) FillParameters(tmpl *models.SQLTemplate) (string, []interface{}, error) {
+// FillParameters generates values for the template's parameters and returns the list of arguments.
+func (s *Synthesizer) FillParameters(tmpl *models.SQLTemplate) ([]interface{}, error) {
 	groupSamplers, ok := s.samplers[tmpl.GroupKey]
+	if !ok {
+		// No specific model for this template group, return default values or error
+		return make([]interface{}, len(tmpl.Parameters)),
+			fmt.Errorf("no parameter model found for template group key: %s", tmpl.GroupKey)
+	}
 
-	// We need to generate args in the order of tmpl.Parameters
-	args := make([]interface{}, 0, len(tmpl.Parameters))
-
-	// Create a map for value replacement in string
-	paramValues := make(map[string]interface{})
-
-	for _, paramName := range tmpl.Parameters {
+	args := make([]interface{}, len(tmpl.Parameters))
+	for i, paramName := range tmpl.Parameters {
 		var val interface{} = "DEFAULT" // Fallback
 		var err error
 
-		if ok && groupSamplers != nil {
-			if sampler, exists := groupSamplers[paramName]; exists {
-				val, err = sampler.Sample()
-				if err != nil {
-					val = "ERR_SAMPLE"
-				}
+		if sampler, exists := groupSamplers[paramName]; exists {
+			val, err = sampler.Sample()
+			if err != nil {
+				// On sampling error, you might want to use a fallback or log the error
+				val = fmt.Sprintf("ERR_SAMPLING_%s", paramName)
 			}
 		}
-
-		args = append(args, val)
-		paramValues[paramName] = val
+		args[i] = val
 	}
 
-	filledSQL := tmpl.RawSQL
-	for _, pName := range tmpl.Parameters {
-		val := paramValues[pName]
-		valStr := fmt.Sprintf("%v", val)
-
-		// Simple quoting for strings (naive)
-		if _, isString := val.(string); isString {
-			valStr = fmt.Sprintf("'%s'", strings.ReplaceAll(valStr, "'", "''"))
-		}
-
-		filledSQL = strings.ReplaceAll(filledSQL, pName, valStr)
-	}
-
-	return filledSQL, args, nil
+	return args, nil
 }

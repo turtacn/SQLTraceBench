@@ -83,14 +83,14 @@ func (s *WorkloadService) GenerateWorkload(
 		}
 
 		// Synthesize Parameters
-		filledSQL, _, err := synthesizer.FillParameters(selectedTmpl)
+		args, err := synthesizer.FillParameters(selectedTmpl)
 		if err != nil {
 			continue
 		}
 
 		wl.Queries = append(wl.Queries, models.QueryWithArgs{
-			Query: filledSQL,
-			Args:  nil, // Use inlined values
+			Query: selectedTmpl.RawSQL,
+			Args:  args,
 		})
 	}
 

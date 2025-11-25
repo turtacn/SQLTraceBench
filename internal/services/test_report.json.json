@@ -1,0 +1,32 @@
+{
+  "version": "report.v1",
+  "timestamp": "2025-11-25T06:07:08.792057225Z",
+  "metadata": {
+    "base_target": "",
+    "candidate_target": "",
+    "threshold": 0.05,
+    "template_summary": null
+  },
+  "result": {
+    "base_metrics": {
+      "queries_executed": 2,
+      "errors": 0,
+      "duration": 11658316,
+      "p50": 1171229,
+      "p90": 1171229,
+      "p99": 1171229,
+      "slow_queries": 0
+    },
+    "candidate_metrics": {
+      "queries_executed": 2,
+      "errors": 0,
+      "duration": 11607542,
+      "p50": 1155235,
+      "p90": 1155235,
+      "p99": 1155235,
+      "slow_queries": 0
+    },
+    "pass": true,
+    "reason": "Validation passed. Candidate QPS of 172.30 is within the 5.00% threshold of the base QPS of 171.55 (difference of 0.75, 0.44%)."
+  }
+}

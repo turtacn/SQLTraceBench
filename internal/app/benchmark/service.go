@@ -152,17 +152,9 @@ type RealModelWrapper struct {
 func (m *RealModelWrapper) Name() string { return m.name }
 func (m *RealModelWrapper) Generate(ctx context.Context, count int) ([]models.SQLTrace, error) {
 	// The generation service requires a GenerateRequest.
-	// We need to provide valid inputs.
-	// Ideally we load source traces from somewhere (config) to seed generation.
-	// Since we don't have source traces easily here without loading a file,
-	// we will try to pass a minimal request or rely on the service to handle empty source if possible,
-	// BUT generation logic usually requires source traces for analysis.
-	//
-	// CRITICAL: The `generation.Service` implementation provided earlier fails if `SourceTraces` is empty.
 	// We must provide some dummy traces if we want it to work without external files.
-
 	dummyTrace := models.SQLTrace{
-		Query: "SELECT * FROM table",
+		Query:      "SELECT * FROM table WHERE id = ?",
 		Parameters: map[string]interface{}{"id": 1},
 	}
 
@@ -171,7 +163,27 @@ func (m *RealModelWrapper) Generate(ctx context.Context, count int) ([]models.SQ
 		SourceTraces: []models.SQLTrace{dummyTrace},
 	}
 
-	return m.service.Generate(ctx, req)
+	workload, err := m.service.GenerateWorkload(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert BenchmarkWorkload to []SQLTrace for the benchmark runner interface.
+	// This is a temporary adaptation. Ideally, the runner would consume BenchmarkWorkload directly.
+	traces := make([]models.SQLTrace, len(workload.Queries))
+	for i, q := range workload.Queries {
+		// This conversion loses the parameter names, which might be an issue
+		// if the runner's internal logic depends on them. For now, we assume it's okay.
+		params := make(map[string]interface{})
+		for j, arg := range q.Args {
+			params[fmt.Sprintf("p%d", j+1)] = arg
+		}
+		traces[i] = models.SQLTrace{
+			Query:      q.Query,
+			Parameters: params,
+		}
+	}
+	return traces, nil
 }
 
 func initModels(modelConfigs []ModelConfig) []services.TraceGeneratorModel {

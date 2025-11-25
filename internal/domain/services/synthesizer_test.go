@@ -51,9 +51,8 @@ func TestSynthesizer_FillParameters(t *testing.T) {
 	}
 
 	t.Run("Generate Single Query", func(t *testing.T) {
-		sql, args, err := synthesizer.FillParameters(tmpl)
+		args, err := synthesizer.FillParameters(tmpl)
 		assert.NoError(t, err)
-		assert.Contains(t, sql, "SELECT * FROM users WHERE id = ")
 		assert.Len(t, args, 2)
 	})
 
@@ -62,7 +61,7 @@ func TestSynthesizer_FillParameters(t *testing.T) {
 		n := 1000
 
 		for i := 0; i < n; i++ {
-			_, args, err := synthesizer.FillParameters(tmpl)
+			args, err := synthesizer.FillParameters(tmpl)
 			assert.NoError(t, err)
 			idVal := args[0].(int) // id is first param
 			counts[idVal]++
@@ -100,7 +99,7 @@ func TestGenerationFidelity(t *testing.T) {
 	counts := make(map[string]int)
 	n := 2000
 	for i := 0; i < n; i++ {
-		_, args, _ := synth.FillParameters(tmpl)
+		args, _ := synth.FillParameters(tmpl)
 		val := args[0].(string)
 		counts[val]++
 	}
