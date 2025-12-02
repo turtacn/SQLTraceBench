@@ -2,56 +2,107 @@
 
 This guide will walk you through the essential commands to get started with SQLTraceBench. We will cover the end-to-end workflow, from generating a workload to running a benchmark and validating the results.
 
-## 1. Prepare a Sample Trace File
+## Prerequisites
 
-First, you need a raw SQL trace file. The file should be in JSONL format, where each line is a JSON object representing a single query. Each object must contain at least a `query` field.
+- Go 1.18 or higher installed
+- Make sure `GOPATH/bin` is in your PATH.
 
-Create a file named `traces.jsonl` with the following content:
+## 1. Build the Project
+
+First, build the main application and the plugins.
+
+```bash
+make build
+```
+
+This will create the following binaries in the `./bin` directory:
+- `sqltracebench`: The main CLI tool.
+- `clickhouse`: The ClickHouse database plugin.
+
+## 2. Prepare Data
+
+You need a source file for conversion. This can be a SQL schema file (`.sql`) or a trace file (`.json` or `.jsonl`).
+
+### Option A: SQL Schema
+
+Create a file named `schema.sql` with a simple table definition:
+
+```sql
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    name VARCHAR(255),
+    created_at DATETIME
+);
+```
+
+### Option B: SQL Traces
+
+Create a file named `traces.json` with a list of query objects:
 
 ```json
-{"timestamp": "2025-01-01T12:00:00Z", "query": "SELECT * FROM users WHERE id = 1", "latency": 120000000}
-{"timestamp": "2025-01-01T12:00:01Z", "query": "SELECT * FROM products WHERE sku = 'abc'", "latency": 150000000}
-{"timestamp": "2025-01-01T12:00:02Z", "query": "SELECT * FROM users WHERE id = 2", "latency": 110000000}
+[
+    {"timestamp": 1600000000, "duration": 100, "query": "SELECT * FROM users WHERE id = 1"},
+    {"timestamp": 1600000001, "duration": 120, "query": "SELECT * FROM users WHERE id = 2"}
+]
 ```
 
-## 2. Generate a Workload
+## 3. Convert
 
-Next, use the `generate` command to create a workload file from your raw traces. This command analyzes the traces, extracts SQL templates, and generates a new set of queries that mimic the original workload's characteristics.
-
-Run the following command:
+Use the `convert` command to translate your source file into the target database dialect (e.g., ClickHouse).
 
 ```bash
-./bin/sqltracebench generate --source-traces traces.jsonl --out workload.json --count 100
+# Convert Schema
+./bin/sqltracebench convert \
+  --source schema.sql \
+  --target clickhouse \
+  --out ch_schema.sql \
+  --mode schema
+
+# Check result
+cat ch_schema.sql
 ```
 
-This will create a `workload.json` file containing 100 queries.
+## 4. Generate Workload
 
-## 3. Run a Benchmark
-
-Now you can use the `run` command to execute the generated workload against a target database. For this example, we will use the built-in `mock` plugin, which simulates query execution without needing a real database.
-
-First, run the benchmark and save the results as a "base" run:
+Use the `generate` command to create a synthetic workload based on your source traces. This requires a trace file.
 
 ```bash
-./bin/sqltracebench run --workload workload.json --out base_metrics.json --db mock
+./bin/sqltracebench generate \
+  --source-traces traces.json \
+  --out workload.json \
+  --count 100
 ```
 
-Next, run the benchmark again to get a "candidate" set of metrics for comparison:
+## 5. Run Benchmark
+
+Run the benchmark using the generated workload against the target database plugin.
 
 ```bash
-./bin/sqltracebench run --workload workload.json --out candidate_metrics.json --db mock
+./bin/sqltracebench run \
+  --workload workload.json \
+  --db clickhouse \
+  --out metrics.json
 ```
 
-You will now have two files, `base_metrics.json` and `candidate_metrics.json`, each containing the results of a benchmark run.
+**Note:** Ensure the target database is accessible if the plugin requires a connection. For this quickstart, the ClickHouse plugin might try to connect to localhost:9000 by default.
 
-## 4. Validate the Results
+## 6. Validate (Optional)
 
-Finally, use the `validate` command to compare the two benchmark runs. This command will generate an HTML report that highlights any performance deviations.
-
-Run the following command:
+If you have results from two different runs (e.g., `metrics_v1.json` and `metrics_v2.json`), you can compare them.
 
 ```bash
-./bin/sqltracebench validate --base base_metrics.json --candidate candidate_metrics.json --out ./report
+./bin/sqltracebench validate \
+  --base metrics_v1.json \
+  --candidate metrics_v2.json \
+  --out report_dir
 ```
 
-This will create a `validation_report.html` file inside a new `report` directory. Open this file in your browser to see a detailed comparison of the two benchmark runs, including QPS and latency metrics.
+## Running the Automated Quickstart Script
+
+We provide a script that automates all these steps for verification.
+
+```bash
+./examples/quickstart.sh
+```
+
+This script will compile the project, create dummy data, and run through the conversion, generation, and execution steps.
