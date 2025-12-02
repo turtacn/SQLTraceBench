@@ -117,73 +117,7 @@ make build
 
 ## 🎮 Quick Start
 
-### Quick Start Guide
-
-This guide will walk you through a complete workflow: from converting a raw SQL trace and schema to running a benchmark and validating the results.
-
-**1. Convert Schema and Traces**
-
-First, convert your source database's schema and SQL traces to the target database's format. In this example, we'll convert from StarRocks to ClickHouse.
-
-```bash
-sql_trace_bench convert \
-  --source-db starrocks \
-  --target-db clickhouse \
-  --schema ./examples/tpcc_schema.sql \
-  --traces ./examples/tpcc_traces.jsonl \
-  --output ./output/
-```
-
-This command will create an `output` directory containing the converted schema and query templates.
-
-**2. Generate a Workload**
-
-Next, generate a benchmark workload from the converted templates. This will create a `workload.json` file that can be used by the execution engine.
-
-```bash
-sql_trace_bench generate \
-  --template-dir ./output/templates/ \
-  --param-model ./output/param_model.json \
-  --qps 100 \
-  --duration 1m \
-  --output ./workload.json
-```
-
-**3. Run the Benchmark**
-
-Now, run the generated workload against your target database. This will execute the queries and record performance metrics.
-
-```bash
-sql_trace_bench run \
-  --workload ./workload.json \
-  --target-db clickhouse \
-  --qps 100 \
-  --concurrency 10 \
-  --output ./results.json
-```
-
-**4. Validate the Results**
-
-Finally, validate the benchmark results against the original traces to see how closely the generated workload matches the real-world performance.
-
-```bash
-sql_trace_bench validate \
-  --original-traces ./examples/tpcc_traces.jsonl \
-  --benchmark-results ./results.json \
-  --output ./report.html
-```
-
-This will generate an HTML report comparing the QPS and latency of the original and generated workloads.
-
-### Advanced Generation (Phase 2)
-
-```bash
-# Enable hotspot detection and temporal modeling
-sql_trace_bench generate \
-  --traces production.log \
-  --config configs/generation.yaml \
-  --output synthetic_load.jsonl
-```
+For a complete step-by-step guide on how to use SQLTraceBench, please see our new **[Quick Start Guide](docs/quickstart.md)**.
 
 ### Example Input/Output
 
