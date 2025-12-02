@@ -7,6 +7,7 @@ import (
 	"github.com/turtacn/SQLTraceBench/internal/app/validation"
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 	"github.com/turtacn/SQLTraceBench/internal/infrastructure/parsers"
+	"github.com/turtacn/SQLTraceBench/plugin_registry"
 )
 
 // Root holds the application's dependencies.
@@ -28,7 +29,7 @@ func NewRoot() *Root {
 	return &Root{
 		Parser:     parser,
 		Conversion: conversion.NewService(parser, nil), // Use global registry
-		Execution:  execution.NewService(),
+		Execution:  execution.NewService(plugin_registry.GlobalRegistry),
 		Generation: generation.NewService(),
 		Validation: validation.NewService(),
 	}

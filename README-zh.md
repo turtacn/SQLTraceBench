@@ -98,33 +98,7 @@ make build
 
 ## 🎮 快速开始
 
-### 基本使用示例
-
-```bash
-# 将StarRocks轨迹转换为ClickHouse基准测试
-sql_trace_bench convert \
-  --source-db starrocks \
-  --target-db clickhouse \
-  --schema ./examples/tpcc_schema.sql \
-  --traces ./examples/tpcc_traces.jsonl \
-  --output ./output/
-
-# 使用自定义参数生成合成工作负载
-sql_trace_bench generate \
-  --template-dir ./output/templates/ \
-  --param-model ./output/param_model.json \
-  --qps 100 \
-  --duration 5m \
-  --hotspot-ratio 0.8 \
-  --output ./workload/
-
-# 执行基准测试并验证结果
-sql_trace_bench run \
-  --workload-dir ./workload/ \
-  --db-config ./config/clickhouse.yaml \
-  --validate \
-  --report ./results/
-```
+要获取关于如何使用 SQLTraceBench 的完整分步指南，请参阅我们全新的 **[快速入门指南](docs/quickstart.md)**。
 
 ### 输入/输出示例
 

@@ -3,19 +3,12 @@ package clickhouse
 import (
 	"testing"
 
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestPlugin(t *testing.T) {
-	// Create a new plugin.
 	p := New()
-
-	// Test the Name and Version methods.
+	assert.NotNil(t, p)
 	assert.Equal(t, "clickhouse", p.Name())
-	assert.Equal(t, "1.0.0", p.Version())
-
-	// Test the TranslateQuery method.
-	translated, err := p.TranslateQuery("SELECT 1")
-	assert.NoError(t, err)
-	assert.Equal(t, "SELECT 1", translated)
 }

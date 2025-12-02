@@ -31,6 +31,10 @@ func (m *mockPlugin) ConvertSchema(schema *models.Schema) (*models.Schema, error
 	return schema, nil
 }
 
+func (m *mockPlugin) ExecuteQuery(ctx context.Context, req *proto.ExecuteQueryRequest) (*proto.ExecuteQueryResponse, error) {
+	return &proto.ExecuteQueryResponse{}, nil
+}
+
 // --- Test Mapper ---
 
 func TestMapper(t *testing.T) {

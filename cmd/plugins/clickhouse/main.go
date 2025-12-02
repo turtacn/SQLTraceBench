@@ -5,6 +5,8 @@ import (
 	pkg_plugin "github.com/turtacn/SQLTraceBench/pkg/plugin"
 	"github.com/turtacn/SQLTraceBench/pkg/plugin/grpc_impl"
 	"github.com/turtacn/SQLTraceBench/plugins/clickhouse"
+
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 )
 
 func main() {

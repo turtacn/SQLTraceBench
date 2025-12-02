@@ -1,7 +1,10 @@
 package postgres
 
 import (
+	"context"
+
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
+	"github.com/turtacn/SQLTraceBench/pkg/proto"
 	"github.com/turtacn/SQLTraceBench/plugins"
 )
 
@@ -21,4 +24,9 @@ func (p *plugin) TranslateQuery(sql string) (string, error) {
 func (p *plugin) ConvertSchema(schema *models.Schema) (*models.Schema, error) {
 	// Placeholder implementation for Postgres
 	return schema, nil
+}
+
+func (p *plugin) ExecuteQuery(ctx context.Context, req *proto.ExecuteQueryRequest) (*proto.ExecuteQueryResponse, error) {
+	// Placeholder implementation for Postgres
+	return &proto.ExecuteQueryResponse{}, nil
 }

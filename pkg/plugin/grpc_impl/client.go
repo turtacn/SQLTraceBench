@@ -66,3 +66,7 @@ func (c *GRPCClient) ConvertSchema(schema *models.Schema) (*models.Schema, error
 	// Deserialize proto string (JSON) back to domain object
 	return FromProtoSchema(resp.ConvertedSchema)
 }
+
+func (c *GRPCClient) ExecuteQuery(ctx context.Context, req *proto.ExecuteQueryRequest) (*proto.ExecuteQueryResponse, error) {
+	return c.client.ExecuteQuery(ctx, req)
+}

@@ -117,43 +117,7 @@ make build
 
 ## 🎮 Quick Start
 
-### Basic Usage Example
-
-```bash
-# Convert StarRocks traces to ClickHouse benchmark
-sql_trace_bench convert \
-  --source-db starrocks \
-  --target-db clickhouse \
-  --schema ./examples/tpcc_schema.sql \
-  --traces ./examples/tpcc_traces.jsonl \
-  --output ./output/
-
-# Generate synthetic workload with custom parameters
-sql_trace_bench generate \
-  --template-dir ./output/templates/ \
-  --param-model ./output/param_model.json \
-  --qps 100 \
-  --duration 5m \
-  --hotspot-ratio 0.8 \
-  --output ./workload/
-
-# Execute benchmark and validate results
-sql_trace_bench run \
-  --workload-dir ./workload/ \
-  --db-config ./config/clickhouse.yaml \
-  --validate \
-  --report ./results/
-```
-
-### Advanced Generation (Phase 2)
-
-```bash
-# Enable hotspot detection and temporal modeling
-sql_trace_bench generate \
-  --traces production.log \
-  --config configs/generation.yaml \
-  --output synthetic_load.jsonl
-```
+For a complete step-by-step guide on how to use SQLTraceBench, please see our new **[Quick Start Guide](docs/quickstart.md)**.
 
 ### Example Input/Output
 
