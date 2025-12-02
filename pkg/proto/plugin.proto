@@ -8,6 +8,8 @@ service SQLTraceBenchPlugin {
     rpc GetName(Empty) returns (NameResponse);
     rpc TranslateQuery(TranslateQueryRequest) returns (TranslateQueryResponse);
     rpc ConvertSchema(ConvertSchemaRequest) returns (ConvertSchemaResponse);
+    rpc GetBenchmarkExecutor(Empty) returns (Empty);
+    rpc ExecuteQuery(ExecuteQueryRequest) returns (ExecuteQueryResponse);
 }
 
 message Empty {}
@@ -31,5 +33,15 @@ message ConvertSchemaRequest {
 
 message ConvertSchemaResponse {
     string converted_schema = 1;
+    string error = 2;
+}
+
+message ExecuteQueryRequest {
+    string sql = 1;
+    repeated string args = 2;
+}
+
+message ExecuteQueryResponse {
+    int64 duration_micros = 1;
     string error = 2;
 }

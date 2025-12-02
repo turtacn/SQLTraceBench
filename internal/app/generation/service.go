@@ -43,7 +43,8 @@ func (s *DefaultService) GenerateWorkload(ctx context.Context, req GenerateReque
 	// 1. Parse traces to extract SQL templates and raw parameter values.
 	templates := s.templateSvc.ExtractTemplates(models.TraceCollection{Traces: req.SourceTraces})
 	if len(templates) == 0 {
-		return nil, fmt.Errorf("no templates could be extracted from the traces")
+		// Return a workload with no queries, but not an error.
+		return &models.BenchmarkWorkload{}, nil
 	}
 
 	// 2. Build the statistical model for parameters.
@@ -72,44 +73,51 @@ func (s *DefaultService) GenerateWorkload(ctx context.Context, req GenerateReque
 	}
 
 	// 4. Generate the requested number of queries.
+	if len(templates) > 0 && sumWeights(templates) > 0 {
+		totalWeight := sumWeights(templates)
+
+		for i := 0; i < req.Count; i++ {
+			// Select a template based on its observed frequency in the source traces.
+			var template *models.SQLTemplate
+			r := rand.Intn(totalWeight)
+			currentW := 0
+			for idx := range templates {
+				currentW += templates[idx].Weight
+				if r < currentW {
+					template = &templates[idx]
+					break
+				}
+			}
+			if template == nil && len(templates) > 0 {
+				template = &templates[len(templates)-1]
+			}
+
+			if template == nil {
+				continue
+			}
+
+			// Fill the template's parameters with values sampled from the statistical model.
+			args, err := synth.FillParameters(template)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: could not fill parameters for template %s: %v\n", template.GroupKey, err)
+				continue
+			}
+
+			// Append the synthesized query to the workload.
+			workload.Queries = append(workload.Queries, models.QueryWithArgs{
+				Query: template.RawSQL,
+				Args:  args,
+			})
+		}
+	}
+	return workload, nil
+}
+
+
+func sumWeights(templates []models.SQLTemplate) int {
 	totalWeight := 0
 	for _, t := range templates {
 		totalWeight += t.Weight
 	}
-
-	for i := 0; i < req.Count; i++ {
-		// Select a template based on its observed frequency in the source traces.
-		var template *models.SQLTemplate
-		r := rand.Intn(totalWeight)
-		currentW := 0
-		for idx := range templates {
-			currentW += templates[idx].Weight
-			if r < currentW {
-				template = &templates[idx]
-				break
-			}
-		}
-		if template == nil && len(templates) > 0 {
-			template = &templates[len(templates)-1]
-		}
-
-		if template == nil {
-			continue
-		}
-
-		// Fill the template's parameters with values sampled from the statistical model.
-		args, err := synth.FillParameters(template)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not fill parameters for template %s: %v\n", template.GroupKey, err)
-			continue
-		}
-
-		// Append the synthesized query to the workload.
-		workload.Queries = append(workload.Queries, models.QueryWithArgs{
-			Query: template.RawSQL,
-			Args:  args,
-		})
-	}
-
-	return workload, nil
+	return totalWeight
 }

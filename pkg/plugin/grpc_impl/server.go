@@ -48,3 +48,7 @@ func (s *GRPCServer) ConvertSchema(ctx context.Context, req *proto.ConvertSchema
 
 	return &proto.ConvertSchemaResponse{ConvertedSchema: resStr}, nil
 }
+
+func (s *GRPCServer) ExecuteQuery(ctx context.Context, req *proto.ExecuteQueryRequest) (*proto.ExecuteQueryResponse, error) {
+	return s.Impl.ExecuteQuery(ctx, req)
+}

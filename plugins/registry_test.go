@@ -1,10 +1,12 @@
 package plugins
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
+	"github.com/turtacn/SQLTraceBench/pkg/proto"
 )
 
 type MockPlugin struct {
@@ -26,6 +28,10 @@ func (p *MockPlugin) TranslateQuery(sql string) (string, error) {
 
 func (p *MockPlugin) ConvertSchema(schema *models.Schema) (*models.Schema, error) {
 	return schema, nil
+}
+
+func (p *MockPlugin) ExecuteQuery(ctx context.Context, req *proto.ExecuteQueryRequest) (*proto.ExecuteQueryResponse, error) {
+	return &proto.ExecuteQueryResponse{}, nil
 }
 
 func TestRegistry(t *testing.T) {

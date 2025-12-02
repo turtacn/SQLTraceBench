@@ -78,3 +78,19 @@ type ValidationResult struct {
 	Pass             bool                `json:"pass"`
 	Reason           string              `json:"reason"`
 }
+
+type BenchmarkResult struct {
+	Latencies []time.Duration
+	QPS       float64
+}
+
+type ValidationReport struct {
+	Status         string
+	QPSDeviation   float64
+	LatencyP99Diff float64
+}
+
+type QueryExecutionResult struct {
+	Duration time.Duration
+	Error    error
+}

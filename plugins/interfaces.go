@@ -1,9 +1,11 @@
 package plugins
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
+	"github.com/turtacn/SQLTraceBench/pkg/proto"
 )
 
 // Plugin is the interface that all plugins must implement.
@@ -12,6 +14,7 @@ type Plugin interface {
 	Version() string
 	TranslateQuery(sql string) (string, error)
 	ConvertSchema(schema *models.Schema) (*models.Schema, error)
+	ExecuteQuery(ctx context.Context, req *proto.ExecuteQueryRequest) (*proto.ExecuteQueryResponse, error)
 }
 
 // Registry holds a collection of all registered plugins.

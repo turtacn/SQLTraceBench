@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Validation Report</title>
+    <style>
+        body { font-family: sans-serif; }
+        .container { margin: 2em; }
+        .status-pass { color: green; }
+        .status-warn { color: orange; }
+        .status-fail { color: red; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Validation Report</h1>
+        <p>Status: <span class="status-{{ .Status | ToLower }}">{{ .Status }}</span></p>
+        <h2>QPS</h2>
+        <p>Deviation: {{ .QPSDeviation }}</p>
+        <h2>Latency</h2>
+        <p>P99 Difference: {{ .LatencyP99Diff }}</p>
+    </div>
+</body>
+</html>
+<script>
+    function ToLower(s) {
+        return s.toLowerCase();
+    }
+</script>

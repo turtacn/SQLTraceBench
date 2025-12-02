@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/turtacn/SQLTraceBench/internal/app"
-	"github.com/turtacn/SQLTraceBench/internal/app/validation"
+	"github.com/turtacn/SQLTraceBench/internal/domain/models"
+	"github.com/turtacn/SQLTraceBench/internal/infrastructure/reporters"
 )
 
 var (
@@ -29,28 +32,38 @@ func init() {
 }
 
 func runValidate(cmd *cobra.Command, args []string) error {
-	// The validation service interface has changed to ValidateTrace(ctx, req)
-	// We need to adapt the CLI command.
-	// But `baseMetricsPath` implies comparison of metrics, not traces.
-	// The issue is that I am working on Phase 4 (Benchmarking), but `cmd/validate.go`
-	// seems to be from an older phase or conflicting with the `internal/app/validation` I see.
-	// The `internal/app/validation/service.go` has `ValidateTrace` but no `Validate`.
-	// I will fix this compilation error by using `ValidateTrace`.
-	// However, the flags (base, candidate) look like they expect metrics JSONs,
-	// whereas `ValidateTrace` expects trace files (JSONL).
-	// Assuming `baseMetricsPath` == Original traces and `candMetricsPath` == Generated traces.
-
 	root := app.NewRoot()
-	req := validation.ValidationRequest{
-		OriginalPath:   baseMetricsPath,
-		GeneratedPath:  candMetricsPath,
-		ReportDir:      reportPath, // Actually reportPath is a file path in flags, but Dir in Request
-		KSThreshold:    threshold,
+
+	// Load base metrics
+	baseFile, err := os.Open(baseMetricsPath)
+	if err != nil {
+		return err
+	}
+	defer baseFile.Close()
+	var baseResult models.BenchmarkResult
+	if err := json.NewDecoder(baseFile).Decode(&baseResult); err != nil {
+		return err
 	}
 
-	// If reportPath is a file, we might need to adjust.
-	// But let's just pass it.
+	// Load candidate metrics
+	candFile, err := os.Open(candMetricsPath)
+	if err != nil {
+		return err
+	}
+	defer candFile.Close()
+	var candResult models.BenchmarkResult
+	if err := json.NewDecoder(candFile).Decode(&candResult); err != nil {
+		return err
+	}
 
-	_, err := root.Validation.ValidateTrace(context.Background(), req)
-	return err
+	report, err := root.Validation.ValidateBenchmarks(context.Background(), &baseResult, &candResult)
+	if err != nil {
+		return err
+	}
+
+	reporter, err := reporters.NewHTMLReporter()
+	if err != nil {
+		return err
+	}
+	return reporter.GenerateReport(report, reportPath)
 }

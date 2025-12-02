@@ -1,52 +1,44 @@
 package reporters
 
 import (
-	"fmt"
+	"embed"
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/turtacn/SQLTraceBench/internal/domain/services"
+	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 )
 
-// HTMLReporter generates HTML reports for validation results.
+//go:embed templates/report.html
+var reportTemplate embed.FS
+
 type HTMLReporter struct {
-	TemplatePath string
+	template *template.Template
 }
 
-// NewHTMLReporter creates a new HTMLReporter.
-func NewHTMLReporter(templatePath string) *HTMLReporter {
-	return &HTMLReporter{
-		TemplatePath: templatePath,
+func NewHTMLReporter() (*HTMLReporter, error) {
+	t, err := template.New("report.html").Funcs(template.FuncMap{
+		"ToLower": strings.ToLower,
+	}).ParseFS(reportTemplate, "templates/report.html")
+	if err != nil {
+		return nil, err
 	}
+	return &HTMLReporter{template: t}, nil
 }
 
-// GenerateReport renders the validation report into an HTML file.
-func (r *HTMLReporter) GenerateReport(
-	report *services.ValidationReport,
-	outputPath string,
-) error {
-	// Parse the template
-	tmpl, err := template.ParseFiles(r.TemplatePath)
+func (r *HTMLReporter) GenerateReport(data *models.ValidationReport, outputPath string) error {
+	// If the output path is an existing directory, create the report file inside it.
+	info, err := os.Stat(outputPath)
+	if err == nil && info.IsDir() {
+		outputPath = filepath.Join(outputPath, "validation_report.html")
+	}
+
+	f, err := os.Create(outputPath)
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return err
 	}
+	defer f.Close()
 
-	// Create the output file
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer file.Close()
-
-	// Render the template
-	if err := tmpl.Execute(file, report); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	return nil
+	return r.template.Execute(f, data)
 }
