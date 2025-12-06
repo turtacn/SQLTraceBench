@@ -1,0 +1,15 @@
+# Example Pipeline Configuration
+input_trace_path: "testdata/fixtures/mysql_traces.jsonl"
+input_schema_path: "testdata/fixtures/mysql_schema.sql"
+output_dir: "output/pipeline_example"
+target_plugin: "clickhouse"
+
+generation:
+  count: 1000
+
+execution:
+  target_qps: 100
+  concurrency: 10
+  target_db: "clickhouse"
+
+baseline_metrics_path: "testdata/baseline/metrics.json"

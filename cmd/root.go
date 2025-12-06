@@ -1,11 +1,20 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/spf13/cobra"
+	"github.com/turtacn/SQLTraceBench/internal/app/conversion"
+	"github.com/turtacn/SQLTraceBench/internal/app/execution"
+	"github.com/turtacn/SQLTraceBench/internal/app/generation"
+	"github.com/turtacn/SQLTraceBench/internal/app/validation"
+	"github.com/turtacn/SQLTraceBench/internal/app/workflow"
+	"github.com/turtacn/SQLTraceBench/internal/infrastructure/parsers"
 	"github.com/turtacn/SQLTraceBench/pkg/config"
 	"github.com/turtacn/SQLTraceBench/pkg/types"
 	"github.com/turtacn/SQLTraceBench/pkg/utils"
 	"github.com/turtacn/SQLTraceBench/plugin_registry"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -41,9 +50,52 @@ var (
 	}
 )
 
+var workflowCmd = &cobra.Command{
+	Use:   "workflow",
+	Short: "Run multi-phase benchmark workflow",
+}
+
+var workflowRunCmd = &cobra.Command{
+	Use:   "run",
+	Short: "Execute full pipeline: convert -> generate -> run -> validate",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		pipelineConfigFile, _ := cmd.Flags().GetString("config")
+
+		// Load Pipeline Config
+		var pipelineCfg workflow.WorkflowConfig
+		data, err := os.ReadFile(pipelineConfigFile)
+		if err != nil {
+			return err
+		}
+		if err := yaml.Unmarshal(data, &pipelineCfg); err != nil {
+			return err
+		}
+
+		// Initialize Services
+		parser := parsers.NewAntlrParser()
+		registry := plugin_registry.GlobalRegistry
+
+		convSvc := conversion.NewService(parser, registry)
+		genSvc := generation.NewService()
+		execSvc := execution.NewService(registry)
+		valSvc := validation.NewService()
+
+		// Initialize Manager
+		mgr := workflow.NewManager(convSvc, genSvc, execSvc, valSvc)
+
+		// Run
+		return mgr.Run(cmd.Context(), pipelineCfg)
+	},
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", types.DefaultConfigPath, "config file")
 	rootCmd.PersistentFlags().StringVar(&pluginDir, "plugin-dir", "./bin", "Directory where plugins are located")
+
+	workflowRunCmd.Flags().StringP("config", "c", "", "Pipeline config YAML")
+	workflowRunCmd.MarkFlagRequired("config")
+	workflowCmd.AddCommand(workflowRunCmd)
+	rootCmd.AddCommand(workflowCmd)
 }
 
 func Execute() error {

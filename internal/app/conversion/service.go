@@ -21,9 +21,21 @@ type ConvertRequest struct {
 	OutputPath       string
 }
 
+// ConvertTraceRequest represents a request to convert traces.
+type ConvertTraceRequest struct {
+	SourcePath   string
+	TargetDBType string
+}
+
+// ConversionResult holds the result of a trace conversion.
+type ConversionResult struct {
+	Traces    []models.SQLTrace
+	Templates []models.SQLTemplate
+}
+
 // Service is the interface for the conversion service.
 type Service interface {
-	ConvertFromFile(ctx context.Context, tracePath string) ([]models.SQLTemplate, error)
+	ConvertFromFile(ctx context.Context, req ConvertTraceRequest) (*ConversionResult, error)
 	ConvertSchemaFromFile(ctx context.Context, req ConvertRequest) error
 	ConvertStreamingly(ctx context.Context, tracePath string, bufferSize int, callback func(models.SQLTrace) error) error
 }
@@ -36,10 +48,6 @@ type DefaultService struct {
 }
 
 // NewService creates a new DefaultService.
-// Note: If registry is not passed, we use the global one or create one.
-// To keep signature compatible if possible, or we assume caller updates.
-// For now, I'll use the GlobalRegistry if not passed via deps (but constructor here builds deps).
-// Better to inject it.
 func NewService(parser services.Parser, registry *plugin_registry.Registry) Service {
 	if registry == nil {
 		registry = plugin_registry.GlobalRegistry
@@ -51,9 +59,9 @@ func NewService(parser services.Parser, registry *plugin_registry.Registry) Serv
 	}
 }
 
-// ConvertFromFile reads SQL traces from a file and converts them to templates.
-func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath string) ([]models.SQLTemplate, error) {
-	file, err := os.Open(tracePath)
+// ConvertFromFile reads SQL traces from a file, optionally translates them, and converts them to templates.
+func (s *DefaultService) ConvertFromFile(ctx context.Context, req ConvertTraceRequest) (*ConversionResult, error) {
+	file, err := os.Open(req.SourcePath)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +70,28 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath string) 
 	var traces []models.SQLTrace
 	parser := parsers.NewStreamingTraceParser(0) // Default buffer size
 
+	// Prepare plugin if translation is needed
+	var plugin interface {
+		TranslateQuery(string) (string, error)
+	}
+	if req.TargetDBType != "" {
+		p, ok := s.pluginRegistry.Get(req.TargetDBType)
+		if !ok {
+			return nil, fmt.Errorf("plugin not found: %s", req.TargetDBType)
+		}
+		plugin = p
+	}
+
 	err = parser.Parse(file, func(trace models.SQLTrace) error {
+		if plugin != nil {
+			translated, err := plugin.TranslateQuery(trace.Query)
+			if err == nil {
+				trace.Query = translated
+			}
+			// If translation fails, we might keep original or log warning.
+			// For now keeping original if error, or maybe we should fail?
+			// The cmd/convert.go logic was: if err == nil { trace.Query = translated }
+		}
 		traces = append(traces, trace)
 		return nil
 	})
@@ -77,17 +106,18 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, tracePath string) 
 	for i := range tpls {
 		tables, err := s.parser.ListTables(tpls[i].RawSQL)
 		if err != nil {
-			// In a real application, we might want to handle this error more gracefully.
 			continue
 		}
 		_ = tables // TODO: store the tables in the template
 	}
 
-	return tpls, nil
+	return &ConversionResult{
+		Traces:    traces,
+		Templates: tpls,
+	}, nil
 }
 
 // ConvertStreamingly processes traces line-by-line using the provided callback.
-// This prevents OOM errors by avoiding loading all traces into memory.
 func (s *DefaultService) ConvertStreamingly(ctx context.Context, tracePath string, bufferSize int, callback func(models.SQLTrace) error) error {
 	file, err := os.Open(tracePath)
 	if err != nil {
@@ -111,9 +141,6 @@ func (s *DefaultService) ConvertSchemaFromFile(ctx context.Context, req ConvertR
 	// 2. Get Plugin from Registry
 	p, ok := s.pluginRegistry.Get(req.TargetDBType)
 	if !ok {
-		// Try loading from global if not found in local ref (though they should be same usually)
-		// Or try to lazy load?
-		// For now, assume it's preloaded or we error.
 		return fmt.Errorf("plugin not found for target db type: %s", req.TargetDBType)
 	}
 
@@ -124,8 +151,6 @@ func (s *DefaultService) ConvertSchemaFromFile(ctx context.Context, req ConvertR
 	}
 
 	// 4. Generate DDL String & Write
-	// Note: We use the `CreateSQL` field if present (StarRocks plugin populates it),
-	// otherwise we fallback to generic generation.
 	ddl := s.generateDDL(tgtSchema)
 	return os.WriteFile(req.OutputPath, []byte(ddl), 0644)
 }
@@ -167,7 +192,6 @@ func parseDDLFile(path string) (*models.Schema, error) {
 }
 
 func parseCreateTable(sql string) (*models.TableSchema, error) {
-	// regex to get table name: CREATE TABLE `?name`?
 	reName := regexp.MustCompile(`(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\x60"]?(\w+)[\x60"]?`)
 	matches := reName.FindStringSubmatch(sql)
 	if len(matches) < 2 {
@@ -175,7 +199,6 @@ func parseCreateTable(sql string) (*models.TableSchema, error) {
 	}
 	tableName := matches[1]
 
-	// Extract body
 	start := strings.Index(sql, "(")
 	end := strings.LastIndex(sql, ")")
 	if start == -1 || end == -1 || end <= start {
@@ -193,9 +216,7 @@ func parseCreateTable(sql string) (*models.TableSchema, error) {
 		if colStr == "" {
 			continue
 		}
-		// Check for PRIMARY KEY (col, ...)
 		if strings.HasPrefix(strings.ToUpper(colStr), "PRIMARY KEY") {
-			// Extract keys
 			rePK := regexp.MustCompile(`(?i)PRIMARY\s+KEY\s*\(([^)]+)\)`)
 			pkMatches := rePK.FindStringSubmatch(colStr)
 			if len(pkMatches) >= 2 {
@@ -208,14 +229,11 @@ func parseCreateTable(sql string) (*models.TableSchema, error) {
 			}
 			continue
 		}
-		// Check for other keys like KEY, INDEX, CONSTRAINT
 		upper := strings.ToUpper(colStr)
 		if strings.HasPrefix(upper, "KEY") || strings.HasPrefix(upper, "INDEX") || strings.HasPrefix(upper, "CONSTRAINT") || strings.HasPrefix(upper, "UNIQUE") {
 			continue
 		}
 
-		// Assume it's a column definition
-		// format: name type [modifiers]
 		parts := strings.Fields(colStr)
 		if len(parts) < 2 {
 			continue
@@ -226,7 +244,6 @@ func parseCreateTable(sql string) (*models.TableSchema, error) {
 		isNullable := true
 		isPrimaryKey := false
 
-		// check modifiers
 		upperStr := strings.ToUpper(colStr)
 		if strings.Contains(upperStr, "NOT NULL") {
 			isNullable = false
@@ -244,7 +261,6 @@ func parseCreateTable(sql string) (*models.TableSchema, error) {
 		})
 	}
 
-	// Mark IsPrimaryKey on columns if found in table-level PK definition
 	for _, pk := range pks {
 		for _, col := range columns {
 			if col.Name == pk {
@@ -287,14 +303,12 @@ func (s *DefaultService) generateDDL(schema *models.Schema) string {
 	var sb strings.Builder
 	for _, db := range schema.Databases {
 		for _, table := range db.Tables {
-			// If CreateSQL is already populated by the plugin, use it.
 			if table.CreateSQL != "" {
 				sb.WriteString(table.CreateSQL)
 				sb.WriteString("\n\n")
 				continue
 			}
 
-			// Fallback generic generator (mostly for legacy/ClickHouse if not updated)
 			sb.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", table.Name))
 			for i, col := range table.Columns {
 				sb.WriteString(fmt.Sprintf("    %s %s", col.Name, col.DataType))

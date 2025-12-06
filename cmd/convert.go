@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/turtacn/SQLTraceBench/internal/app/conversion"
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
-	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 	"github.com/turtacn/SQLTraceBench/internal/infrastructure/parsers"
 	"github.com/turtacn/SQLTraceBench/pkg/utils"
 	"github.com/turtacn/SQLTraceBench/plugin_registry"
@@ -96,7 +95,7 @@ func runConvert(cmd *cobra.Command, args []string) error {
 		return runTraceStreamConversion(cmd, svc, logger, bufferSize)
 	}
 
-	return runTraceBatchConversion(cmd, svc, logger, bufferSize)
+	return runTraceBatchConversion(cmd, svc, logger)
 }
 
 func runTraceStreamConversion(cmd *cobra.Command, svc conversion.Service, logger *utils.Logger, bufferSize int) error {
@@ -141,62 +140,13 @@ func runTraceStreamConversion(cmd *cobra.Command, svc conversion.Service, logger
 	return nil
 }
 
-func runTraceBatchConversion(cmd *cobra.Command, svc conversion.Service, logger *utils.Logger, bufferSize int) error {
-	if targetPlugin != "" {
-		// Manual pipeline with translation
-		file, err := os.Open(sourcePath)
-		if err != nil {
-			return err
-		}
-		// defer file.Close() // Will close manually or in block if needed, but best to defer.
-
-		// Use a closure to handle file closing safely if we were doing complex logic,
-		// but here we just read it.
-		// Wait, I should defer Close() immediately.
-		defer file.Close()
-
-		parser := parsers.NewStreamingTraceParser(bufferSize)
-		var traces []models.SQLTrace
-
-		p, err := plugin_registry.GetPlugin(targetPlugin)
-		if err != nil {
-			return err
-		}
-
-		count := 0
-		err = parser.Parse(file, func(trace models.SQLTrace) error {
-			translatedQuery, err := p.TranslateQuery(trace.Query)
-			if err == nil {
-				trace.Query = translatedQuery
-			}
-			traces = append(traces, trace)
-			count++
-			if count%10000 == 0 {
-				logger.Info("Loading traces", utils.Field{Key: "count", Value: count})
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-
-		tc := models.TraceCollection{Traces: traces}
-		templateSvc := services.NewTemplateService() // Direct usage of domain service
-		tpls := templateSvc.ExtractTemplates(tc)
-
-		outFile, err := os.Create(outputPath)
-		if err != nil {
-			return err
-		}
-		defer outFile.Close()
-
-		encoder := json.NewEncoder(outFile)
-		encoder.SetIndent("", "  ")
-		return encoder.Encode(tpls)
+func runTraceBatchConversion(cmd *cobra.Command, svc conversion.Service, logger *utils.Logger) error {
+	req := conversion.ConvertTraceRequest{
+		SourcePath:   sourcePath,
+		TargetDBType: targetPlugin,
 	}
 
-	// No translation needed -> Use Service directly.
-	tpls, err := svc.ConvertFromFile(cmd.Context(), sourcePath)
+	result, err := svc.ConvertFromFile(cmd.Context(), req)
 	if err != nil {
 		return err
 	}
@@ -209,5 +159,5 @@ func runTraceBatchConversion(cmd *cobra.Command, svc conversion.Service, logger 
 
 	encoder := json.NewEncoder(outFile)
 	encoder.SetIndent("", "  ")
-	return encoder.Encode(tpls)
+	return encoder.Encode(result.Templates)
 }

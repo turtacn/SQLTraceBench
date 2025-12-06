@@ -48,8 +48,11 @@ func TestConvertFromFile_Integration(t *testing.T) {
 	defer os.RemoveAll(testdataDir)
 
 	// Execute the service method
-	actualTemplates, err := service.ConvertFromFile(context.Background(), tracePath)
+	req := ConvertTraceRequest{SourcePath: tracePath}
+	result, err := service.ConvertFromFile(context.Background(), req)
 	require.NoError(t, err)
+
+	actualTemplates := result.Templates
 
 	// Verify: Compare the results
 	assert.Len(t, actualTemplates, 2)
