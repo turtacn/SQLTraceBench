@@ -4,6 +4,9 @@ input_schema_path: "testdata/fixtures/mysql_schema.sql"
 output_dir: "output/pipeline_example"
 target_plugin: "clickhouse"
 
+# Report Style Configuration (Optional)
+report_style: "html" # Options: html, json
+
 generation:
   count: 1000
 

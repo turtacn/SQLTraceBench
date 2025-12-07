@@ -1,0 +1,63 @@
+{{ define "chart_js" }}
+// QPS Chart
+const qpsCtx = document.getElementById('qpsChart').getContext('2d');
+new Chart(qpsCtx, {
+    type: 'line',
+    data: {
+        labels: {{ .ChartData.QPSLabels | json }},
+        datasets: [{
+            label: 'Current QPS',
+            data: {{ .ChartData.QPSValues | json }},
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }, {
+            label: 'Baseline QPS',
+            data: {{ .ChartData.BaselineQPSValues | json }},
+            borderColor: 'rgb(192, 75, 75)',
+            tension: 0.1,
+            borderDash: [5, 5]
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'QPS Over Time'
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Latency Distribution Chart (Histogram approximation)
+const latCtx = document.getElementById('latencyDistChart').getContext('2d');
+new Chart(latCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ .ChartData.LatencyBins | json }},
+        datasets: [{
+            label: 'Current Latency Distribution',
+            data: {{ .ChartData.LatencyCounts | json }},
+            backgroundColor: 'rgba(75, 192, 192, 0.5)',
+        }, {
+            label: 'Baseline Latency Distribution',
+            data: {{ .ChartData.BaselineLatencyCounts | json }},
+            backgroundColor: 'rgba(192, 75, 75, 0.5)',
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: true,
+                text: 'Latency Distribution'
+            }
+        }
+    }
+});
+{{ end }}

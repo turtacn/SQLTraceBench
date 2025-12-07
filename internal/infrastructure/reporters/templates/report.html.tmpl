@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SQLTraceBench Validation Report - {{.Timestamp}}</title>
+    <style>
+        /* Embedding CSS for single-file portability option if needed, but we link for now */
+    </style>
+    <link rel="stylesheet" href="styles.css">
+    <script src="chart.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>SQLTraceBench Validation Report</h1>
+        <div class="meta">
+            Generated: {{.Timestamp}} | Target: {{.TargetPlugin}}
+        </div>
+    </header>
+
+    <section class="status-card {{if .OverallPass}}pass{{else}}fail{{end}}">
+        <h2>Overall Status: {{if .OverallPass}}PASS{{else}}FAIL{{end}}</h2>
+        <div class="metrics-grid">
+            <div class="metric">
+                <label>QPS Deviation</label>
+                <span class="{{qpsStatusClass .QPSDeviation}}">
+                    {{printf "%.2f%%" .QPSDeviation}}
+                </span>
+            </div>
+            <div class="metric">
+                <label>P99 Latency</label>
+                <span>Baseline: {{printf "%.2f" .BaselineP99}}ms | Current: {{printf "%.2f" .CurrentP99}}ms</span>
+            </div>
+            <div class="metric">
+                <label>QPS</label>
+                <span>Baseline: {{printf "%.2f" .BaselineQPS}} | Current: {{printf "%.2f" .CurrentQPS}}</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="charts">
+        <h2>Performance Metrics</h2>
+        <div class="chart-container">
+            <canvas id="qpsChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="latencyDistChart"></canvas>
+        </div>
+    </section>
+
+    <section class="statistical-tests">
+        <h2>Statistical Validation</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Test Name</th>
+                    <th>Metric</th>
+                    <th>p-value</th>
+                    <th>Threshold</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .StatisticalTests}}
+                <tr class="{{if .Passed}}pass{{else}}fail{{end}}">
+                    <td>{{.TestName}}</td>
+                    <td>{{.Metric}}</td>
+                    <td>{{printf "%.4f" .PValue}}</td>
+                    <td>{{.Threshold}}</td>
+                    <td>{{if .Passed}}PASS{{else}}FAIL{{end}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </section>
+
+    <script>
+        {{ template "chart_js" . }}
+    </script>
+</body>
+</html>
