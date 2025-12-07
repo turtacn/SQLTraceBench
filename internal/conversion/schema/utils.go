@@ -1,6 +1,9 @@
 package schema
 
-import "strings"
+import (
+    "regexp"
+    "strings"
+)
 
 // SplitWithBalance splits a string by a separator, respecting parenthesis balance.
 func SplitWithBalance(s string, sep rune) []string {
@@ -41,4 +44,23 @@ func SplitWithBalance(s string, sep rune) []string {
 		parts = append(parts, current.String())
 	}
 	return parts
+}
+
+// ParseTypeWithParams parses a type string into base type and parameters.
+// e.g. "DECIMAL(10, 2)" -> "DECIMAL", ["10", "2"]
+func ParseTypeWithParams(fullType string) (string, []string) {
+	re := regexp.MustCompile(`^([a-zA-Z0-9_ ]+)(?:\(([^)]+)\))?.*$`)
+	matches := re.FindStringSubmatch(fullType)
+	if len(matches) < 2 {
+		return fullType, nil
+	}
+	baseType := strings.TrimSpace(matches[1])
+	var params []string
+	if len(matches) > 2 && matches[2] != "" {
+		rawParams := SplitWithBalance(matches[2], ',') // Use SplitWithBalance for params too
+		for _, p := range rawParams {
+			params = append(params, strings.TrimSpace(p))
+		}
+	}
+	return baseType, params
 }

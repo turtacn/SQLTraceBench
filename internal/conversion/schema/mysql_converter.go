@@ -16,10 +16,16 @@ type MySQLConverter struct {
 	precision     *PrecisionHandler
 	warnings      *WarningCollector
 	ruleLoader    *MappingRuleLoader
+    sourceDB      string
 }
 
 // NewMySQLConverter creates a new MySQLConverter.
 func NewMySQLConverter() *MySQLConverter {
+    return NewMySQLConverterWithSource("mysql")
+}
+
+// NewMySQLConverterWithSource creates a new MySQLConverter with specific source DB.
+func NewMySQLConverterWithSource(sourceDB string) *MySQLConverter {
 	ruleLoader, _ := NewMappingRuleLoader("configs/type_mapping_rules.yaml")
 	analyzer := NewTypeAnalyzer()
 	precision := NewPrecisionHandler("configs/precision_policy.yaml")
@@ -33,6 +39,7 @@ func NewMySQLConverter() *MySQLConverter {
 		precision:  precision,
 		warnings:   warnings,
 		ruleLoader: ruleLoader,
+        sourceDB:   sourceDB,
 	}
 
 	return c
@@ -254,7 +261,7 @@ func (c *MySQLConverter) ConvertTable(sourceTable *models.TableSchema, targetDB 
 	for _, col := range sourceTable.Columns {
         ctx := &TypeMappingContext{
             SourceType: col.DataType,
-            SourceDB: "mysql",
+            SourceDB: c.sourceDB,
             TargetDB: targetDB,
             ColumnName: col.Name,
             IsPrimaryKey: col.IsPrimaryKey,
@@ -275,7 +282,7 @@ func (c *MySQLConverter) ConvertTable(sourceTable *models.TableSchema, targetDB 
         }
 
         targetType := result.TargetType
-		if strings.HasPrefix(strings.ToUpper(col.DataType), "ENUM") && targetDB == "clickhouse" && (targetType == "Enum8" || targetType == "Enum16") {
+		if strings.HasPrefix(strings.ToUpper(col.DataType), "ENUM") && targetDB == "clickhouse" {
 			targetType = c.convertEnumToClickHouse(col.DataType)
 		}
 
@@ -330,7 +337,7 @@ func (c *MySQLConverter) convertEnumToClickHouse(enumType string) string {
 func (c *MySQLConverter) GetTypeMapping(sourceType string, targetDB string) (string, error) {
     ctx := &TypeMappingContext{
         SourceType: sourceType,
-        SourceDB: "mysql",
+        SourceDB: c.sourceDB,
         TargetDB: targetDB,
     }
     res, err := c.typeMapper.MapType(ctx)

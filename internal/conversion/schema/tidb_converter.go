@@ -10,14 +10,12 @@ import (
 // Since TiDB is MySQL compatible, it reuses MySQLConverter logic but handles TiDB specifics.
 type TiDBConverter struct {
 	mysqlConverter *MySQLConverter
-    // TiDB converter could have its own type mapper if needed, but reusing MySQL's is fine for now
-    // as TiDB types are mostly MySQL compatible.
 }
 
 // NewTiDBConverter creates a new TiDBConverter.
 func NewTiDBConverter() *TiDBConverter {
 	return &TiDBConverter{
-		mysqlConverter: NewMySQLConverter(),
+		mysqlConverter: NewMySQLConverterWithSource("tidb"),
 	}
 }
 
@@ -55,16 +53,6 @@ func (c *TiDBConverter) preprocessTiDBDDL(ddl string) string {
 
 // ConvertTable converts a single table structure.
 func (c *TiDBConverter) ConvertTable(sourceTable *models.TableSchema, targetDB string) (*models.TableSchema, error) {
-    // For intelligent mapping, we might want to override the SourceDB to "tidb"
-    // in the context. Since MySQLConverter hardcodes "mysql", we might need to modify MySQLConverter
-    // or manually handle it here.
-
-    // If we want full "tidb" source support in rules, we should copy logic from MySQLConverter but use "tidb".
-    // Or we can modify MySQLConverter to accept sourceDB name.
-
-    // For now, reusing MySQL converter is acceptable as per requirements ("Integration" task lists it).
-    // The previous implementation simply delegated.
-
 	return c.mysqlConverter.ConvertTable(sourceTable, targetDB)
 }
 

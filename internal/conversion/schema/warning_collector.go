@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -49,13 +50,25 @@ func (c *WarningCollector) GenerateReport(format string) (string, error) {
 
 	switch format {
 	case "json":
-		// return c.generateJSONReport()
-		return fmt.Sprintf("{\"total\": %d}", c.stats.TotalWarnings), nil
+		return c.generateJSONReport()
 	case "markdown":
 		return c.generateMarkdownReport()
 	default:
 		return "", fmt.Errorf("unsupported format: %s", format)
 	}
+}
+
+func (c *WarningCollector) generateJSONReport() (string, error) {
+    report := map[string]interface{}{
+        "statistics": c.stats,
+        "warnings":   c.warnings,
+        "total":      c.stats.TotalWarnings, // Keep backward compat with simple check
+    }
+    bytes, err := json.MarshalIndent(report, "", "  ")
+    if err != nil {
+        return "", err
+    }
+    return string(bytes), nil
 }
 
 func (c *WarningCollector) generateMarkdownReport() (string, error) {
