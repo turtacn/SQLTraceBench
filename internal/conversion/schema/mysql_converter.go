@@ -318,6 +318,8 @@ func (c *MySQLConverter) ConvertTable(sourceTable *models.TableSchema, targetDB 
 		// Keys logic would be handled in generateCreateSQL or here.
 		// models.TableSchema has Engine string field which is raw.
 		// We can construct it here.
+	} else if targetDB == "mock_plugin" {
+		targetTable.Engine = "MockEngine"
 	}
 
 	return targetTable, nil
@@ -351,6 +353,10 @@ func (c *MySQLConverter) convertEnumToClickHouse(enumType string) string {
 
 // GetTypeMapping gets the type mapping.
 func (c *MySQLConverter) GetTypeMapping(sourceType string, targetDB string) (string, error) {
+	if targetDB == "mock_plugin" {
+		return GetMockTypeMapping(sourceType), nil
+	}
+
 	baseType := getBaseType(sourceType)
 	var mapping TypeMapping
 	if targetDB == "clickhouse" {

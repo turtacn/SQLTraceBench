@@ -128,3 +128,9 @@ func getBaseType(fullType string) string {
 	}
 	return strings.ToUpper(strings.TrimSpace(fullType))
 }
+
+// GetMockTypeMapping returns a passthrough mapping for testing.
+func GetMockTypeMapping(sourceType string) string {
+	// Simple pass-through or normalization for mock tests
+	return sourceType
+}
