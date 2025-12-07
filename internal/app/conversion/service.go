@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
+	"github.com/turtacn/SQLTraceBench/internal/conversion/schema"
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 	"github.com/turtacn/SQLTraceBench/internal/domain/services"
 	"github.com/turtacn/SQLTraceBench/internal/infrastructure/parsers"
-	"github.com/turtacn/SQLTraceBench/pkg/utils"
 	"github.com/turtacn/SQLTraceBench/plugin_registry"
 )
 
@@ -19,6 +18,7 @@ type ConvertRequest struct {
 	SourceSchemaPath string
 	TargetDBType     string
 	OutputPath       string
+	SourceDB         string // Optional, will be auto-detected if empty
 }
 
 // ConvertTraceRequest represents a request to convert traces.
@@ -88,9 +88,6 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, req ConvertTraceRe
 			if err == nil {
 				trace.Query = translated
 			}
-			// If translation fails, we might keep original or log warning.
-			// For now keeping original if error, or maybe we should fail?
-			// The cmd/convert.go logic was: if err == nil { trace.Query = translated }
 		}
 		traces = append(traces, trace)
 		return nil
@@ -102,13 +99,12 @@ func (s *DefaultService) ConvertFromFile(ctx context.Context, req ConvertTraceRe
 	tc := models.TraceCollection{Traces: traces}
 	tpls := s.templateSvc.ExtractTemplates(tc)
 
-	// Use the parser to extract table names for each template.
 	for i := range tpls {
 		tables, err := s.parser.ListTables(tpls[i].RawSQL)
 		if err != nil {
 			continue
 		}
-		_ = tables // TODO: store the tables in the template
+		_ = tables
 	}
 
 	return &ConversionResult{
@@ -132,197 +128,42 @@ func (s *DefaultService) ConvertStreamingly(ctx context.Context, tracePath strin
 
 // ConvertSchemaFromFile reads a SQL schema file, converts it to the target dialect, and writes the result.
 func (s *DefaultService) ConvertSchemaFromFile(ctx context.Context, req ConvertRequest) error {
-	// 1. Parse Source
-	srcSchema, err := parseDDLFile(req.SourceSchemaPath)
+	content, err := os.ReadFile(req.SourceSchemaPath)
 	if err != nil {
-		return fmt.Errorf("failed to parse source schema: %w", err)
+		return fmt.Errorf("failed to read schema file: %w", err)
+	}
+	schemaContent := string(content)
+
+	sourceDB := req.SourceDB
+	if sourceDB == "" {
+		sourceDB = detectSQLDialect(schemaContent)
 	}
 
-	// 2. Get Plugin from Registry
-	p, ok := s.pluginRegistry.Get(req.TargetDBType)
-	if !ok {
-		return fmt.Errorf("plugin not found for target db type: %s", req.TargetDBType)
-	}
-
-	// 3. Convert Schema
-	tgtSchema, err := p.ConvertSchema(srcSchema)
+	factory := schema.NewConverterFactory()
+	converter, err := factory.GetConverter(sourceDB)
 	if err != nil {
-		return fmt.Errorf("plugin failed to convert schema: %w", err)
+		return fmt.Errorf("unsupported source database: %s", sourceDB)
 	}
 
-	// 4. Generate DDL String & Write
-	ddl := s.generateDDL(tgtSchema)
-	return os.WriteFile(req.OutputPath, []byte(ddl), 0644)
-}
-
-func parseDDLFile(path string) (*models.Schema, error) {
-	content, err := os.ReadFile(path)
+	convertedDDL, err := converter.ConvertDDL(schemaContent, req.TargetDBType)
 	if err != nil {
-		return nil, err
-	}
-	sql := string(content)
-
-	// Very simple regex parser for CREATE TABLE
-	schema := &models.Schema{
-		Databases: []models.DatabaseSchema{
-			{
-				Name:   "default", // Extracted from file or context
-				Tables: []*models.TableSchema{},
-			},
-		},
+		return fmt.Errorf("failed to convert DDL: %w", err)
 	}
 
-	// Split by semicolon
-	stmts := strings.Split(sql, ";")
-	for _, stmt := range stmts {
-		stmt = strings.TrimSpace(stmt)
-		if stmt == "" {
-			continue
-		}
-		if strings.HasPrefix(strings.ToUpper(stmt), "CREATE TABLE") {
-			table, err := parseCreateTable(stmt)
-			if err != nil {
-				utils.GetGlobalLogger().Error("Failed to parse table", utils.Field{Key: "error", Value: err})
-				continue
-			}
-			schema.Databases[0].Tables = append(schema.Databases[0].Tables, table)
-		}
-	}
-	return schema, nil
+	return os.WriteFile(req.OutputPath, []byte(convertedDDL), 0644)
 }
 
-func parseCreateTable(sql string) (*models.TableSchema, error) {
-	reName := regexp.MustCompile(`(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[\x60"]?(\w+)[\x60"]?`)
-	matches := reName.FindStringSubmatch(sql)
-	if len(matches) < 2 {
-		return nil, fmt.Errorf("could not extract table name")
+func detectSQLDialect(ddl string) string {
+	upperDDL := strings.ToUpper(ddl)
+	if strings.Contains(upperDDL, "ENGINE=INNODB") || strings.Contains(upperDDL, "ENGINE=MYISAM") {
+		return "mysql"
 	}
-	tableName := matches[1]
-
-	start := strings.Index(sql, "(")
-	end := strings.LastIndex(sql, ")")
-	if start == -1 || end == -1 || end <= start {
-		return nil, fmt.Errorf("could not extract table body")
+	if strings.Contains(upperDDL, "JSONB") || strings.Contains(upperDDL, "SERIAL") || strings.Contains(ddl, "::") {
+		return "postgres"
 	}
-	body := sql[start+1 : end]
-
-	colsStr := splitWithBalance(body, ',')
-
-	var columns []*models.ColumnSchema
-	var pks []string
-
-	for _, colStr := range colsStr {
-		colStr = strings.TrimSpace(colStr)
-		if colStr == "" {
-			continue
-		}
-		if strings.HasPrefix(strings.ToUpper(colStr), "PRIMARY KEY") {
-			rePK := regexp.MustCompile(`(?i)PRIMARY\s+KEY\s*\(([^)]+)\)`)
-			pkMatches := rePK.FindStringSubmatch(colStr)
-			if len(pkMatches) >= 2 {
-				keys := strings.Split(pkMatches[1], ",")
-				for _, k := range keys {
-					k = strings.TrimSpace(k)
-					k = strings.Trim(k, "`\"")
-					pks = append(pks, k)
-				}
-			}
-			continue
-		}
-		upper := strings.ToUpper(colStr)
-		if strings.HasPrefix(upper, "KEY") || strings.HasPrefix(upper, "INDEX") || strings.HasPrefix(upper, "CONSTRAINT") || strings.HasPrefix(upper, "UNIQUE") {
-			continue
-		}
-
-		parts := strings.Fields(colStr)
-		if len(parts) < 2 {
-			continue
-		}
-		name := strings.Trim(parts[0], "`\"")
-		dataType := parts[1]
-
-		isNullable := true
-		isPrimaryKey := false
-
-		upperStr := strings.ToUpper(colStr)
-		if strings.Contains(upperStr, "NOT NULL") {
-			isNullable = false
-		}
-		if strings.Contains(upperStr, "PRIMARY KEY") {
-			isPrimaryKey = true
-			pks = append(pks, name)
-		}
-
-		columns = append(columns, &models.ColumnSchema{
-			Name:         name,
-			DataType:     dataType,
-			IsNullable:   isNullable,
-			IsPrimaryKey: isPrimaryKey,
-		})
+	if strings.Contains(upperDDL, "SHARD_ROW_ID_BITS") || strings.Contains(ddl, "/*T![clustered") {
+		return "tidb"
 	}
-
-	for _, pk := range pks {
-		for _, col := range columns {
-			if col.Name == pk {
-				col.IsPrimaryKey = true
-			}
-		}
-	}
-
-	return &models.TableSchema{
-		Name:    tableName,
-		Columns: columns,
-		PK:      pks,
-	}, nil
-}
-
-func splitWithBalance(s string, sep rune) []string {
-	var parts []string
-	var current strings.Builder
-	balance := 0
-	for _, r := range s {
-		if r == '(' {
-			balance++
-		} else if r == ')' {
-			balance--
-		}
-		if r == sep && balance == 0 {
-			parts = append(parts, current.String())
-			current.Reset()
-		} else {
-			current.WriteRune(r)
-		}
-	}
-	if current.Len() > 0 {
-		parts = append(parts, current.String())
-	}
-	return parts
-}
-
-func (s *DefaultService) generateDDL(schema *models.Schema) string {
-	var sb strings.Builder
-	for _, db := range schema.Databases {
-		for _, table := range db.Tables {
-			if table.CreateSQL != "" {
-				sb.WriteString(table.CreateSQL)
-				sb.WriteString("\n\n")
-				continue
-			}
-
-			sb.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", table.Name))
-			for i, col := range table.Columns {
-				sb.WriteString(fmt.Sprintf("    %s %s", col.Name, col.DataType))
-				if i < len(table.Columns)-1 {
-					sb.WriteString(",")
-				}
-				sb.WriteString("\n")
-			}
-			if table.Engine != "" {
-				sb.WriteString(fmt.Sprintf(") ENGINE = %s;\n\n", table.Engine))
-			} else {
-				sb.WriteString(");\n\n")
-			}
-		}
-	}
-	return sb.String()
+	// Default to mysql as it is most common and standard DDL often looks like MySQL
+	return "mysql"
 }

@@ -20,6 +20,14 @@ graph TD
     ES --> PR
 ```
 
+### 2.2 Supported Databases
+
+| Source Database | Target: ClickHouse | Target: StarRocks |
+|:----------------|:-------------------|:------------------|
+| **MySQL**       | ✅ (Full)          | ✅ (Full)         |
+| **PostgreSQL**  | ✅ (Beta)          | ✅ (Beta)         |
+| **TiDB**        | ✅ (Full)          | ✅ (Full)         |
+
 ## 6. Implementation Roadmap
 
 ### Phase 1: Foundation (Current)
@@ -28,6 +36,13 @@ graph TD
 - [x] Plugin System
 - [x] CLI `workflow` command
 
-### Phase 2: Advanced Features
+### Phase 2: Schema Conversion Enhancement
+- [x] Schema Converter Factory & Interfaces
+- [x] MySQL Converter
+- [x] PostgreSQL Converter
+- [x] TiDB Converter
+- [x] Unified Type Mapping
+
+### Phase 3: Advanced Features
 - [ ] Distributed Execution
 - [ ] Advanced Parameter Modeling (LSTM, etc)

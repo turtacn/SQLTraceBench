@@ -10,6 +10,7 @@ import (
 
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
 	"github.com/turtacn/SQLTraceBench/pkg/utils"
+	"github.com/xwb1989/sqlparser"
 )
 
 // StreamingTraceParser is responsible for parsing trace files in a streaming fashion.
@@ -25,6 +26,25 @@ func NewStreamingTraceParser(bufferSize int) *StreamingTraceParser {
 	return &StreamingTraceParser{
 		BufferSize: bufferSize,
 	}
+}
+
+// ListTables extracts table names from a SQL query.
+// It implements the services.Parser interface.
+func (p *StreamingTraceParser) ListTables(sql string) ([]string, error) {
+	stmt, err := sqlparser.Parse(sql)
+	if err != nil {
+		return nil, err
+	}
+
+	var tables []string
+	_ = sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
+		if t, ok := node.(sqlparser.TableName); ok && !t.IsEmpty() {
+			tables = append(tables, t.Name.String())
+		}
+		return true, nil
+	}, stmt)
+
+	return tables, nil
 }
 
 // traceDTO is a data transfer object used for unmarshalling the JSON lines.
