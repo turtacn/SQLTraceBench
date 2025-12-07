@@ -8,6 +8,7 @@ SQLTraceBench is a tool for benchmarking database performance using trace-based 
 - **Multi-Database Support**: Architecture allows plugins for different databases (e.g., MySQL, ClickHouse, StarRocks).
 - **Statistical Modeling**: Uses statistical models to synthesize realistic parameter values.
 - **Extensible**: Easily add new database dialects and workload patterns.
+- **Visual Reports**: Generates comprehensive HTML validation reports with interactive charts.
 
 ## Getting Started
 
@@ -18,6 +19,16 @@ It covers:
 * Preparing data
 * Running conversion, generation, and benchmarking commands
 * Using the automated `examples/quickstart.sh` script
+
+## Validation Reports
+
+SQLTraceBench generates detailed validation reports to compare your benchmark results against a baseline.
+
+![Validation Report](docs/images/report_preview.png)
+
+*Example of an HTML validation report showing QPS deviation and latency distribution.*
+
+See [Report Interpretation Guide](docs/user_guide/report_interpretation.md) for details on how to read the reports.
 
 ## Development
 

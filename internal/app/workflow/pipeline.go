@@ -14,6 +14,7 @@ type WorkflowConfig struct {
 
 	// Settings
 	TargetPlugin string `yaml:"target_plugin"`
+	ReportStyle  string `yaml:"report_style"` // html, json
 
 	// Phase Configs
 	Generation generation.GenerateRequest `yaml:"generation"`

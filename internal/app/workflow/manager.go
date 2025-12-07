@@ -12,7 +12,10 @@ import (
 	"github.com/turtacn/SQLTraceBench/internal/app/generation"
 	"github.com/turtacn/SQLTraceBench/internal/app/validation"
 	"github.com/turtacn/SQLTraceBench/internal/domain/models"
-	"github.com/turtacn/SQLTraceBench/pkg/utils"
+	"github.com/turtacn/SQLTraceBench/internal/infrastructure/reporters"
+	"github.com/turtacn/SQLTraceBench/internal/utils"
+	"github.com/turtacn/SQLTraceBench/internal/utils/progress"
+	"github.com/turtacn/SQLTraceBench/internal/utils/terminal"
 )
 
 // Manager coordinates the workflow pipeline.
@@ -43,6 +46,7 @@ func NewManager(
 // Run executes the full 4-phase pipeline.
 func (m *Manager) Run(ctx context.Context, cfg WorkflowConfig) error {
 	m.logger.Info("Starting Workflow", utils.Field{Key: "config", Value: cfg})
+	fmt.Println(terminal.Info("Starting SQLTraceBench Workflow..."))
 
 	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output dir: %w", err)
@@ -52,22 +56,28 @@ func (m *Manager) Run(ctx context.Context, cfg WorkflowConfig) error {
 	// Phase 1: Conversion
 	// ==========================================
 	m.logger.Info("Phase 1: Conversion starting...")
+	p1Bar := progress.NewProgressBar(100, "Phase 1: Conversion") // Estimation
 
 	// 1.1 Trace Conversion
 	traceReq := conversion.ConvertTraceRequest{
 		SourcePath:   cfg.InputTracePath,
 		TargetDBType: cfg.TargetPlugin,
 	}
+
+	// Simulation of progress for conversion (since streaming isn't fully exposed with progress callback yet)
+	p1Bar.Increment(10)
 	convRes, err := m.conversionSvc.ConvertFromFile(ctx, traceReq)
 	if err != nil {
 		return fmt.Errorf("conversion phase failed (traces): %w", err)
 	}
+	p1Bar.Increment(50)
 
-	// Save converted traces (optional but good for debugging/validation)
+	// Save converted traces
 	convertedTracePath := filepath.Join(cfg.OutputDir, "converted", "traces.jsonl")
 	if err := saveJSONL(convertedTracePath, convRes.Traces); err != nil {
 		return fmt.Errorf("failed to save converted traces: %w", err)
 	}
+	p1Bar.Increment(20)
 
 	// 1.2 Schema Conversion (if schema path provided)
 	if cfg.InputSchemaPath != "" {
@@ -84,32 +94,42 @@ func (m *Manager) Run(ctx context.Context, cfg WorkflowConfig) error {
 			return fmt.Errorf("conversion phase failed (schema): %w", err)
 		}
 	}
+	p1Bar.Finish()
+	fmt.Println(terminal.Success("Phase 1: Conversion complete"))
 	m.logger.Info("Phase 1: Conversion complete")
 
 	// ==========================================
 	// Phase 2: Generation
 	// ==========================================
 	m.logger.Info("Phase 2: Generation starting...")
+	p2Bar := progress.NewProgressBar(int64(cfg.Generation.Count), "Phase 2: Generation")
 
 	// Update Generation Request with converted traces
 	genReq := cfg.Generation
 	genReq.SourceTraces = convRes.Traces
 
+	// TODO: Add progress callback to generation service if possible, currently we wait
 	workload, err := m.generationSvc.GenerateWorkload(ctx, genReq)
 	if err != nil {
 		return fmt.Errorf("generation phase failed: %w", err)
 	}
+	// Complete the bar
+	p2Bar.Increment(int64(cfg.Generation.Count))
+	p2Bar.Finish()
 
 	workloadPath := filepath.Join(cfg.OutputDir, "workload", "benchmark.jsonl")
 	if err := saveJSONL(workloadPath, workload); err != nil {
 		return fmt.Errorf("failed to save workload: %w", err)
 	}
+	fmt.Println(terminal.Success("Phase 2: Generation complete"))
 	m.logger.Info("Phase 2: Generation complete")
 
 	// ==========================================
 	// Phase 3: Execution
 	// ==========================================
 	m.logger.Info("Phase 3: Execution starting...")
+	totalQueries := int64(len(workload.Queries))
+	p3Bar := progress.NewProgressBar(totalQueries, "Phase 3: Execution ")
 
 	execCfg := cfg.Execution
 	// Ensure TargetDB is set from top-level config if not in sub-config
@@ -117,42 +137,73 @@ func (m *Manager) Run(ctx context.Context, cfg WorkflowConfig) error {
 		execCfg.TargetDB = cfg.TargetPlugin
 	}
 
+	// We might need to wrap execution to update progress, but ExecutionService is black box here.
+	// For now, we just indicate start and end. Ideally we'd pass a progress channel.
+	p3Bar.Increment(1) // Started
+
 	result, err := m.executionSvc.RunBenchmark(ctx, workload, execCfg)
 	if err != nil {
 		return fmt.Errorf("execution phase failed: %w", err)
 	}
 
+	p3Bar.Increment(totalQueries) // Done
+	p3Bar.Finish()
+
 	resultPath := filepath.Join(cfg.OutputDir, "results", "metrics.json")
 	if err := saveJSON(resultPath, result); err != nil {
 		return fmt.Errorf("failed to save metrics: %w", err)
 	}
+	fmt.Println(terminal.Success("Phase 3: Execution complete"))
 	m.logger.Info("Phase 3: Execution complete")
 
 	// ==========================================
-	// Phase 4: Validation
+	// Phase 4: Validation & Reporting
 	// ==========================================
 	if cfg.BaselineMetricsPath != "" {
 		m.logger.Info("Phase 4: Validation starting...")
+		fmt.Println(terminal.Info("Phase 4: Validation starting..."))
 
 		// Load baseline
 		var baseline models.BenchmarkResult
 		if err := loadJSON(cfg.BaselineMetricsPath, &baseline); err != nil {
 			m.logger.Warn("Failed to load baseline metrics, skipping validation", utils.Field{Key: "error", Value: err})
+			fmt.Println(terminal.Warning("Skipping validation: could not load baseline metrics"))
 		} else {
 			report, err := m.validationSvc.ValidateBenchmarks(ctx, &baseline, result)
 			if err != nil {
 				return fmt.Errorf("validation phase failed: %w", err)
 			}
 
-			// Save report (HTML or JSON - for now let's save as JSON)
+			// Generate HTML Report
+			htmlReporter, err := reporters.NewHTMLReporter()
+			if err != nil {
+				m.logger.Error("Failed to initialize HTML reporter", utils.Field{Key: "error", Value: err})
+			} else {
+				htmlPath := filepath.Join(cfg.OutputDir, "validation_report.html")
+				if err := htmlReporter.GenerateReport(report, cfg.TargetPlugin, htmlPath); err != nil {
+					m.logger.Error("Failed to generate HTML report", utils.Field{Key: "error", Value: err})
+				} else {
+					fmt.Println(terminal.Success(fmt.Sprintf("HTML Report generated: %s", htmlPath)))
+				}
+			}
+
+			// Save JSON report
 			reportPath := filepath.Join(cfg.OutputDir, "report.json")
 			if err := saveJSON(reportPath, report); err != nil {
 				return fmt.Errorf("failed to save validation report: %w", err)
 			}
-			m.logger.Info("Phase 4: Validation complete", utils.Field{Key: "status", Value: report.Status})
+
+			statusMsg := fmt.Sprintf("Phase 4: Validation complete. Status: %s", utils.SafeString(report.Pass))
+			if report.Pass {
+				fmt.Println(terminal.Success(statusMsg))
+			} else {
+				fmt.Println(terminal.Error(statusMsg))
+			}
+			m.logger.Info("Phase 4: Validation complete", utils.Field{Key: "status", Value: report.Pass})
 		}
 	} else {
 		m.logger.Info("Phase 4: Validation skipped (no baseline provided)")
+		fmt.Println(terminal.Warning("Phase 4: Validation skipped (no baseline provided)"))
 	}
 
 	return nil
@@ -170,10 +221,6 @@ func saveJSONL(path string, data interface{}) error {
 
 	enc := json.NewEncoder(f)
 
-	// If it's a slice of things, encode each one.
-	// But `data` here can be `[]models.SQLTrace` or `*models.BenchmarkWorkload`.
-	// For `BenchmarkWorkload`, we probably want to save queries one per line.
-
 	switch v := data.(type) {
 	case []models.SQLTrace:
 		for _, t := range v {
@@ -188,7 +235,6 @@ func saveJSONL(path string, data interface{}) error {
 			}
 		}
 	default:
-		// Fallback: just dump as one JSON object (not JSONL actually)
 		return enc.Encode(data)
 	}
 	return nil
