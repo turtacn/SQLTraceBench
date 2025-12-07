@@ -1,0 +1,135 @@
+version: "1.0.0"
+updated_at: 2024-12-06T10:00:00Z
+
+# Default mapping rules
+default_rules:
+  mysql:clickhouse:
+    VARCHAR: "String"
+    CHAR: "FixedString"
+    INT: "Int32"
+    INTEGER: "Int32"
+    TINYINT: "Int8"
+    SMALLINT: "Int16"
+    MEDIUMINT: "Int32"
+    BIGINT: "Int64"
+    DECIMAL: "Decimal128"
+    TIMESTAMP: "DateTime"
+    DATETIME: "DateTime"
+    DATE: "Date"
+    TEXT: "String"
+    BLOB: "String"
+    ENUM: "Enum8"
+    SET: "Array(String)"
+    JSON: "String"
+    FLOAT: "Float32"
+    DOUBLE: "Float64"
+    BIT: "UInt64"
+    BOOLEAN: "UInt8"
+
+  postgres:clickhouse:
+    VARCHAR: "String"
+    CHARACTER VARYING: "String"
+    CHAR: "FixedString"
+    CHARACTER: "FixedString"
+    INTEGER: "Int32"
+    INT: "Int32"
+    SMALLINT: "Int16"
+    BIGINT: "Int64"
+    NUMERIC: "Decimal128"
+    DECIMAL: "Decimal128"
+    REAL: "Float32"
+    DOUBLE PRECISION: "Float64"
+    TIMESTAMP: "DateTime64"
+    TIMESTAMPTZ: "DateTime64"
+    DATE: "Date"
+    TEXT: "String"
+    BYTEA: "String"
+    UUID: "UUID"
+    JSONB: "String"
+    JSON: "String"
+    BOOLEAN: "UInt8"
+    BOOL: "UInt8"
+
+  tidb:clickhouse:
+    VARCHAR: "String"
+    CHAR: "FixedString"
+    INT: "Int32"
+    INTEGER: "Int32"
+    TINYINT: "Int8"
+    SMALLINT: "Int16"
+    MEDIUMINT: "Int32"
+    BIGINT: "Int64"
+    DECIMAL: "Decimal128"
+    TIMESTAMP: "DateTime"
+    DATETIME: "DateTime"
+    DATE: "Date"
+    TEXT: "String"
+    BLOB: "String"
+    ENUM: "Enum8"
+    SET: "Array(String)"
+    JSON: "String"
+    FLOAT: "Float32"
+    DOUBLE: "Float64"
+
+# User custom rules (override default rules)
+custom_rules:
+  mysql:clickhouse:
+    # Example: MEDIUMTEXT: "String"
+
+# Context-aware rules
+context_rules:
+  - name: "primary_key_varchar_to_fixedstring"
+    priority: 100
+    description: "Convert VARCHAR to FixedString for Primary Key to improve performance"
+    conditions:
+      - field: "is_primary_key"
+        operator: "equals"
+        value: true
+      - field: "source_type"
+        operator: "matches"
+        value: "VARCHAR\\((\\d+)\\)"
+      - field: "length"
+        operator: "range"
+        value: [1, 256]
+    target_type: "FixedString({length})"
+
+  - name: "email_column_lowcardinality"
+    priority: 90
+    description: "Use LowCardinality for email columns"
+    conditions:
+      - field: "column_name"
+        operator: "contains"
+        value: "email"
+      - field: "source_type"
+        operator: "equals"
+        value: "VARCHAR"
+    target_type: "LowCardinality(String)"
+
+  - name: "ip_address_column"
+    priority: 95
+    description: "Use IPv4 type for IP address columns"
+    conditions:
+      - field: "column_name"
+        operator: "matches"
+        value: "(ip|addr|address)"
+      - field: "source_type"
+        operator: "matches"
+        value: "VARCHAR\\((15|16)\\)"
+    target_type: "IPv4"
+
+  - name: "status_enum_conversion"
+    priority: 85
+    description: "Convert status columns to Enum8"
+    conditions:
+      - field: "column_name"
+        operator: "contains"
+        value: "status"
+      - field: "source_type"
+        operator: "equals"
+        value: "VARCHAR"
+    target_type: "Enum8"
+
+metadata:
+  author: "DB Migration Team"
+  contact: "support@sqltracebench.io"
+  documentation: "https://docs.sqltracebench.io/type-mapping"

@@ -11,17 +11,34 @@ import (
 
 // PostgresConverter implements SchemaConverter for PostgreSQL.
 type PostgresConverter struct {
+    typeMapper    *IntelligentTypeMapper
+	analyzer      *TypeAnalyzer
+	precision     *PrecisionHandler
+	warnings      *WarningCollector
+	ruleLoader    *MappingRuleLoader
 }
 
 // NewPostgresConverter creates a new PostgresConverter.
 func NewPostgresConverter() *PostgresConverter {
-	return &PostgresConverter{}
+	ruleLoader, _ := NewMappingRuleLoader("configs/type_mapping_rules.yaml")
+	analyzer := NewTypeAnalyzer()
+	precision := NewPrecisionHandler("configs/precision_policy.yaml")
+	warnings := NewWarningCollector()
+
+	typeMapper := NewIntelligentTypeMapper(ruleLoader, analyzer, precision)
+
+	c := &PostgresConverter{
+		typeMapper: typeMapper,
+		analyzer:   analyzer,
+		precision:  precision,
+		warnings:   warnings,
+		ruleLoader: ruleLoader,
+	}
+	return c
 }
 
 // ConvertDDL converts Postgres DDL to target DB format.
 func (c *PostgresConverter) ConvertDDL(sourceDDL string, targetDB string) (string, error) {
-	// Simple split by semicolon (naive approach, assumes no semicolon in strings/comments)
-	// For robust implementation, a better scanner is needed.
 	stmts := strings.Split(sourceDDL, ";")
 	var sb strings.Builder
 
@@ -52,7 +69,6 @@ func (c *PostgresConverter) ConvertDDL(sourceDDL string, targetDB string) (strin
 }
 
 func (c *PostgresConverter) parseCreateTable(sql string) (*models.TableSchema, error) {
-	// Basic regex parsing logic similar to legacy service but adapted for PG quirks
 	reName := regexp.MustCompile(`(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?`)
 	matches := reName.FindStringSubmatch(sql)
 	if len(matches) < 2 {
@@ -80,10 +96,8 @@ func (c *PostgresConverter) parseCreateTable(sql string) (*models.TableSchema, e
 
 		upper := strings.ToUpper(colStr)
 
-		// Constraint handling (PK, FK, etc.)
 		if strings.HasPrefix(upper, "CONSTRAINT") || strings.HasPrefix(upper, "PRIMARY KEY") {
 			if strings.Contains(upper, "PRIMARY KEY") {
-				// Extract PKs
 				rePK := regexp.MustCompile(`(?i)PRIMARY\s+KEY\s*\(([^)]+)\)`)
 				pkMatches := rePK.FindStringSubmatch(colStr)
 				if len(pkMatches) >= 2 {
@@ -103,11 +117,6 @@ func (c *PostgresConverter) parseCreateTable(sql string) (*models.TableSchema, e
 			continue
 		}
 		name := strings.Trim(parts[0], "\"'")
-
-		// Reconstruct type
-		// PG types can be: INTEGER, VARCHAR(20), INTEGER[], JSONB, etc.
-		// parts[1] is start of type, but type might have spaces (DOUBLE PRECISION)
-		// We need to parse until constraints like NOT NULL, PRIMARY KEY, DEFAULT
 
 		remaining := strings.Join(parts[1:], " ")
 		typeEnd := len(remaining)
@@ -153,26 +162,46 @@ func (c *PostgresConverter) ConvertTable(sourceTable *models.TableSchema, target
 		Indexes: make(map[string]*models.IndexSchema),
 	}
 
+    tableCtx := &TableContext{
+        TableName: sourceTable.Name,
+    }
+
 	for _, col := range sourceTable.Columns {
 		targetType := ""
 
-		// Handle Array types
-		if strings.HasSuffix(col.DataType, "[]") {
-			baseType := strings.TrimSuffix(col.DataType, "[]")
-			mappedBase, err := c.GetTypeMapping(baseType, targetDB)
-			if err == nil {
-				targetType = fmt.Sprintf("Array(%s)", mappedBase)
-			} else {
-				targetType = "Array(String)"
-			}
-		} else {
-			var err error
-			targetType, err = c.GetTypeMapping(col.DataType, targetDB)
-			if err != nil {
-				utils.GetGlobalLogger().Warn(fmt.Sprintf("Unknown type '%s' in table '%s', fallback to String", col.DataType, sourceTable.Name))
-				targetType = "String"
-			}
-		}
+        ctx := &TypeMappingContext{
+            SourceType: col.DataType,
+            SourceDB: "postgres",
+            TargetDB: targetDB,
+            ColumnName: col.Name,
+            IsPrimaryKey: col.IsPrimaryKey,
+            IsNullable: col.IsNullable,
+            TableContext: tableCtx,
+        }
+
+        result, err := c.typeMapper.MapType(ctx)
+        if err == nil {
+            targetType = result.TargetType
+            for _, w := range result.Warnings {
+                w.AffectedColumn = fmt.Sprintf("%s.%s", sourceTable.Name, col.Name)
+                c.warnings.Add(w)
+            }
+        } else {
+            // Fallback for Arrays logic
+            if strings.HasSuffix(col.DataType, "[]") {
+                baseType := strings.TrimSuffix(col.DataType, "[]")
+                ctx.SourceType = baseType
+                res, err := c.typeMapper.MapType(ctx)
+                if err == nil {
+                    targetType = fmt.Sprintf("Array(%s)", res.TargetType)
+                } else {
+                    targetType = "Array(String)"
+                }
+            } else {
+                utils.GetGlobalLogger().Warn(fmt.Sprintf("Unknown type '%s' in table '%s', fallback to String", col.DataType, sourceTable.Name))
+                targetType = "String"
+            }
+        }
 
 		targetTable.Columns = append(targetTable.Columns, &models.ColumnSchema{
 			Name:         col.Name,
@@ -199,30 +228,16 @@ func (c *PostgresConverter) ConvertTable(sourceTable *models.TableSchema, target
 
 // GetTypeMapping gets the type mapping.
 func (c *PostgresConverter) GetTypeMapping(sourceType string, targetDB string) (string, error) {
-	baseType := getBaseType(sourceType)
-	var mapping TypeMapping
-	if targetDB == "clickhouse" {
-		mapping = postgresToClickHouseTypeMap
-	} else if targetDB == "starrocks" {
-		mapping = postgresToStarRocksTypeMap
-	} else {
-		return "", fmt.Errorf("unsupported target database: %s", targetDB)
-	}
-
-	if val, ok := mapping[baseType]; ok {
-		if baseType == "DECIMAL" || baseType == "NUMERIC" {
-             // Extract params if available
-             params := ""
-             start := strings.Index(sourceType, "(")
-             end := strings.LastIndex(sourceType, ")")
-             if start != -1 && end != -1 {
-                 params = sourceType[start : end+1]
-             }
-             return val + params, nil
-        }
-		return val, nil
-	}
-	return "", fmt.Errorf("type mapping not found for %s", sourceType)
+    ctx := &TypeMappingContext{
+        SourceType: sourceType,
+        SourceDB: "postgres",
+        TargetDB: targetDB,
+    }
+    res, err := c.typeMapper.MapType(ctx)
+    if err != nil {
+        return "", err
+    }
+    return res.TargetType, nil
 }
 
 func (c *PostgresConverter) generateCreateSQL(table *models.TableSchema) string {
@@ -243,7 +258,6 @@ func (c *PostgresConverter) generateCreateSQL(table *models.TableSchema) string 
 	return sb.String()
 }
 
-// Helper split function (same as in service.go, but duplicated here to avoid cyclic dep if moved to utils)
 func splitWithBalance(s string, sep rune) []string {
 	var parts []string
 	var current strings.Builder

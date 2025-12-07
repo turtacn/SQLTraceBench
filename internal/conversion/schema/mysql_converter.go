@@ -11,19 +11,35 @@ import (
 
 // MySQLConverter implements SchemaConverter for MySQL.
 type MySQLConverter struct {
+	typeMapper    *IntelligentTypeMapper
+	analyzer      *TypeAnalyzer
+	precision     *PrecisionHandler
+	warnings      *WarningCollector
+	ruleLoader    *MappingRuleLoader
 }
 
 // NewMySQLConverter creates a new MySQLConverter.
 func NewMySQLConverter() *MySQLConverter {
-	return &MySQLConverter{}
+	ruleLoader, _ := NewMappingRuleLoader("configs/type_mapping_rules.yaml")
+	analyzer := NewTypeAnalyzer()
+	precision := NewPrecisionHandler("configs/precision_policy.yaml")
+	warnings := NewWarningCollector()
+
+	typeMapper := NewIntelligentTypeMapper(ruleLoader, analyzer, precision)
+
+	c := &MySQLConverter{
+		typeMapper: typeMapper,
+		analyzer:   analyzer,
+		precision:  precision,
+		warnings:   warnings,
+		ruleLoader: ruleLoader,
+	}
+
+	return c
 }
 
 // ConvertDDL converts MySQL DDL to target DB format.
 func (c *MySQLConverter) ConvertDDL(sourceDDL string, targetDB string) (string, error) {
-	// sqlparser only supports parsing a single statement at a time properly,
-	// or we need to split it.
-	// But since the sourceDDL might contain multiple statements (whole schema file),
-	// we should split it.
 	stmts := strings.Split(sourceDDL, ";")
 	var sb strings.Builder
 
@@ -33,10 +49,8 @@ func (c *MySQLConverter) ConvertDDL(sourceDDL string, targetDB string) (string, 
 			continue
 		}
 
-		// Parse the statement
 		stmt, err := sqlparser.Parse(stmtStr)
 		if err != nil {
-			// Fallback logic if parser fails
 			if strings.HasPrefix(strings.ToUpper(stmtStr), "CREATE TABLE") {
 				table, err := c.fallbackParseCreateTable(stmtStr)
 				if err == nil {
@@ -55,8 +69,7 @@ func (c *MySQLConverter) ConvertDDL(sourceDDL string, targetDB string) (string, 
 
 		switch ddl := stmt.(type) {
 		case *sqlparser.DDL:
-			if ddl.Action == sqlparser.CreateStr { // create table
-				// Handle case where TableSpec is nil but err was nil (e.g. ENUM issues)
+			if ddl.Action == sqlparser.CreateStr {
 				if ddl.TableSpec == nil {
 					table, err := c.fallbackParseCreateTable(stmtStr)
 					if err == nil {
@@ -67,7 +80,6 @@ func (c *MySQLConverter) ConvertDDL(sourceDDL string, targetDB string) (string, 
 							continue
 						}
 					}
-					// If fallback fails, just continue or log
 					utils.GetGlobalLogger().Warn("Failed to parse table spec and fallback failed", utils.Field{Key: "statement", Value: stmtStr})
 					continue
 				}
@@ -86,7 +98,6 @@ func (c *MySQLConverter) ConvertDDL(sourceDDL string, targetDB string) (string, 
 				sb.WriteString("\n\n")
 			}
 		default:
-			// Ignore other statements for now
 		}
 	}
 
@@ -94,8 +105,6 @@ func (c *MySQLConverter) ConvertDDL(sourceDDL string, targetDB string) (string, 
 }
 
 func (c *MySQLConverter) fallbackParseCreateTable(sql string) (*models.TableSchema, error) {
-	// Simple regex parser for ENUM fallback
-	// Extract table name
 	sql = strings.TrimSpace(sql)
 	parts := strings.SplitN(sql, "(", 2)
 	if len(parts) < 2 {
@@ -103,14 +112,12 @@ func (c *MySQLConverter) fallbackParseCreateTable(sql string) (*models.TableSche
 	}
 	preamble := parts[0]
 	nameParts := strings.Fields(preamble)
-	tableName := nameParts[len(nameParts)-1] // rough guess
+	tableName := nameParts[len(nameParts)-1]
 
-	// Extract body
 	body := parts[1]
 	body = strings.TrimSuffix(body, ")")
 	body = strings.TrimSuffix(body, ";")
 
-	// Split columns
 	cols := SplitWithBalance(body, ',')
 	var columns []*models.ColumnSchema
 
@@ -145,30 +152,6 @@ func (c *MySQLConverter) parseTableSpec(tableName string, spec *sqlparser.TableS
 		colName := col.Name.String()
 		colType := col.Type.Type
 
-		// Handle parameterized types
-		if col.Type.Length != nil {
-			// e.g. VARCHAR(255)
-			// val := string(col.Type.Length.Val) // This is complicated in sqlparser AST
-			// For simplicity, we just keep the base type and reconstruct if needed,
-			// but converting to models.ColumnSchema stores raw DataType string usually.
-			// Let's reconstruct the type string.
-			// sqlparser doesn't easily give back the full string.
-			// We will just use the base type for mapping or try to approximate.
-		}
-
-		// To get the full type string including length, we might need to buffer parsing.
-		// Or simpler:
-		// fullType := colType
-		// This is a limitation of using the AST directly without a formatter.
-		// However, for the purpose of this task, let's assume we can map the base type
-		// and maybe we miss length for now unless we do extra work.
-		// Wait, the prompt requirements said "supports 30+ common types".
-
-		// Actually, let's look at how sqlparser stores types.
-		// col.Type is ColumnType.
-		// It has Length, Unsigned, Zerofill, etc.
-
-		// Reconstruct full type string
 		fullTypeStr := colType
 		if col.Type.Length != nil {
 			fullTypeStr += fmt.Sprintf("(%s)", col.Type.Length.Val)
@@ -180,9 +163,7 @@ func (c *MySQLConverter) parseTableSpec(tableName string, spec *sqlparser.TableS
 			fullTypeStr += " UNSIGNED"
 		}
 
-		// Special handling for ENUM if values are available
 		if len(col.Type.EnumValues) > 0 {
-			// Construct ENUM string: ENUM('a','b')
 			var vals []string
 			for _, v := range col.Type.EnumValues {
 				vals = append(vals, fmt.Sprintf("'%s'", v))
@@ -195,9 +176,8 @@ func (c *MySQLConverter) parseTableSpec(tableName string, spec *sqlparser.TableS
 			isNullable = false
 		}
 
-		// Check explicit PK from parsing
 		isPrimaryKey := false
-		if col.Type.KeyOpt == 1 { // sqlparser.ColumnKeyPrimary
+		if col.Type.KeyOpt == 1 {
 			isPrimaryKey = true
 		}
 
@@ -215,7 +195,6 @@ func (c *MySQLConverter) parseTableSpec(tableName string, spec *sqlparser.TableS
 				pk = append(pk, col.Column.String())
 			}
 		} else {
-			// Store other indexes
 			idxName := idx.Info.Name.String()
 			var idxCols []string
 			for _, col := range idx.Columns {
@@ -229,10 +208,8 @@ func (c *MySQLConverter) parseTableSpec(tableName string, spec *sqlparser.TableS
 		}
 	}
 
-	// Collect PKs from columns if not already in pk list
 	for _, col := range columns {
 		if col.IsPrimaryKey {
-			// Check if already in pk list
 			found := false
 			for _, p := range pk {
 				if strings.EqualFold(col.Name, p) {
@@ -246,7 +223,6 @@ func (c *MySQLConverter) parseTableSpec(tableName string, spec *sqlparser.TableS
 		}
 	}
 
-	// Update columns IsPrimaryKey based on collected pk list
 	for _, p := range pk {
 		for _, col := range columns {
 			if strings.EqualFold(col.Name, p) {
@@ -271,39 +247,49 @@ func (c *MySQLConverter) ConvertTable(sourceTable *models.TableSchema, targetDB 
 		Indexes: make(map[string]*models.IndexSchema),
 	}
 
-	// 1. Convert Columns
-	for _, col := range sourceTable.Columns {
-		targetType, err := c.GetTypeMapping(col.DataType, targetDB)
-		if err != nil {
-			// Fallback to String and warn
-			utils.GetGlobalLogger().Warn(fmt.Sprintf("Unknown type '%s' in table '%s', fallback to String", col.DataType, sourceTable.Name))
-			targetType = "String"
-			if targetDB == "starrocks" {
-				targetType = "VARCHAR(65533)" // StarRocks String equivalent
-			}
-		}
+    tableCtx := &TableContext{
+        TableName: sourceTable.Name,
+    }
 
-		// Handle ENUM special case for ClickHouse
-		if strings.HasPrefix(strings.ToUpper(col.DataType), "ENUM") && targetDB == "clickhouse" {
-			// Need to extract values. The parseTableSpec put the full string "ENUM('a','b')" in DataType.
+	for _, col := range sourceTable.Columns {
+        ctx := &TypeMappingContext{
+            SourceType: col.DataType,
+            SourceDB: "mysql",
+            TargetDB: targetDB,
+            ColumnName: col.Name,
+            IsPrimaryKey: col.IsPrimaryKey,
+            IsNullable: col.IsNullable,
+            DefaultValue: col.Default,
+            TableContext: tableCtx,
+        }
+
+        result, err := c.typeMapper.MapType(ctx)
+        if err != nil {
+             utils.GetGlobalLogger().Warn(fmt.Sprintf("Failed to map type for column %s: %v", col.Name, err))
+             result = &TypeMappingResult{TargetType: "String"}
+        }
+
+        for _, w := range result.Warnings {
+            w.AffectedColumn = fmt.Sprintf("%s.%s", sourceTable.Name, col.Name)
+            c.warnings.Add(w)
+        }
+
+        targetType := result.TargetType
+		if strings.HasPrefix(strings.ToUpper(col.DataType), "ENUM") && targetDB == "clickhouse" && (targetType == "Enum8" || targetType == "Enum16") {
 			targetType = c.convertEnumToClickHouse(col.DataType)
-		} else if strings.HasPrefix(strings.ToUpper(col.DataType), "ENUM") && targetDB == "starrocks" {
-			targetType = "VARCHAR(65533)" // Fallback for StarRocks
 		}
 
 		targetTable.Columns = append(targetTable.Columns, &models.ColumnSchema{
 			Name:         col.Name,
 			DataType:     targetType,
-			IsNullable:   col.IsNullable,
+			IsNullable:   col.IsNullable && !col.IsPrimaryKey,
 			IsPrimaryKey: col.IsPrimaryKey,
 			Default:      col.Default,
 		})
 	}
 
-	// 2. Convert Engine / Options
 	if targetDB == "clickhouse" {
 		engine := "MergeTree()"
-		// ORDER BY
 		orderBy := "tuple()"
 		if len(sourceTable.PK) > 0 {
 			orderBy = fmt.Sprintf("(%s)", strings.Join(sourceTable.PK, ", "))
@@ -311,13 +297,7 @@ func (c *MySQLConverter) ConvertTable(sourceTable *models.TableSchema, targetDB 
 		engine += fmt.Sprintf(" ORDER BY %s", orderBy)
 		targetTable.Engine = engine
 	} else if targetDB == "starrocks" {
-		// StarRocks DDL logic
-		// DUPLICATE KEY or UNIQUE KEY based on PK?
-		// For simplicity, using DUPLICATE KEY with primary key columns
 		targetTable.Engine = "OLAP"
-		// Keys logic would be handled in generateCreateSQL or here.
-		// models.TableSchema has Engine string field which is raw.
-		// We can construct it here.
 	} else if targetDB == "mock_plugin" {
 		targetTable.Engine = "MockEngine"
 	}
@@ -326,9 +306,6 @@ func (c *MySQLConverter) ConvertTable(sourceTable *models.TableSchema, targetDB 
 }
 
 func (c *MySQLConverter) convertEnumToClickHouse(enumType string) string {
-	// Input: ENUM('pending','shipped')
-	// Output: Enum8('pending'=1, 'shipped'=2)
-
 	start := strings.Index(enumType, "(")
 	end := strings.LastIndex(enumType, ")")
 	if start == -1 || end == -1 {
@@ -336,8 +313,6 @@ func (c *MySQLConverter) convertEnumToClickHouse(enumType string) string {
 	}
 
 	content := enumType[start+1 : end]
-	// Split by comma, respecting quotes
-	// Simple split for now
 	parts := strings.Split(content, ",")
 	var enumDefs []string
 	for i, p := range parts {
@@ -353,42 +328,16 @@ func (c *MySQLConverter) convertEnumToClickHouse(enumType string) string {
 
 // GetTypeMapping gets the type mapping.
 func (c *MySQLConverter) GetTypeMapping(sourceType string, targetDB string) (string, error) {
-	if targetDB == "mock_plugin" {
-		return GetMockTypeMapping(sourceType), nil
-	}
-
-	baseType := getBaseType(sourceType)
-	var mapping TypeMapping
-	if targetDB == "clickhouse" {
-		mapping = mysqlToClickHouseTypeMap
-	} else if targetDB == "starrocks" {
-		mapping = mysqlToStarRocksTypeMap
-	} else {
-		return "", fmt.Errorf("unsupported target database: %s", targetDB)
-	}
-
-	if val, ok := mapping[baseType]; ok {
-		// Handle parameterized types
-		if baseType == "DECIMAL" || baseType == "CHAR" {
-			// Extract parameters from sourceType
-			params := ""
-			start := strings.Index(sourceType, "(")
-			end := strings.LastIndex(sourceType, ")")
-			if start != -1 && end != -1 {
-				params = sourceType[start : end+1]
-			}
-			if targetDB == "clickhouse" {
-				if baseType == "CHAR" {
-					return "FixedString" + params, nil
-				}
-				return "Decimal" + params, nil
-			}
-			return val + params, nil
-		}
-		return val, nil
-	}
-
-	return "", fmt.Errorf("type mapping not found for %s", sourceType)
+    ctx := &TypeMappingContext{
+        SourceType: sourceType,
+        SourceDB: "mysql",
+        TargetDB: targetDB,
+    }
+    res, err := c.typeMapper.MapType(ctx)
+    if err != nil {
+        return "", err
+    }
+    return res.TargetType, nil
 }
 
 func (c *MySQLConverter) generateCreateSQL(table *models.TableSchema) string {
@@ -408,4 +357,9 @@ func (c *MySQLConverter) generateCreateSQL(table *models.TableSchema) string {
 		sb.WriteString(");")
 	}
 	return sb.String()
+}
+
+// GenerateWarningReport generates warnings.
+func (c *MySQLConverter) GenerateWarningReport(format string) (string, error) {
+    return c.warnings.GenerateReport(format)
 }

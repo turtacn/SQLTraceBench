@@ -1,0 +1,29 @@
+version: "1.0.0"
+
+# DECIMAL precision policy
+decimal_policy:
+  overflow_strategy: "WARN"  # TRUNCATE/ERROR/WARN
+  max_precision: 38          # Max precision for Decimal128
+  prefer_decimal256: false   # Whether to prefer Decimal256 if available
+
+# TIMESTAMP precision policy
+timestamp_policy:
+  default_fractional_seconds: 3  # Default to milliseconds
+  preserve_timezone: true        # Preserve timezone info
+  fallback_to_datetime: false    # Fallback to DateTime if precision is 0
+
+# Floating point precision policy
+float_policy:
+  prefer_float64: true      # Prefer Float64 for better precision
+  warn_on_precision_loss: true
+  rounding_mode: "ROUND_HALF_UP"
+
+# String length policy
+string_policy:
+  fixedstring_threshold: 256  # Max length for FixedString
+  use_lowcardinality_for:
+    - "email"
+    - "country"
+    - "status"
+    - "category"
+    - "type"
